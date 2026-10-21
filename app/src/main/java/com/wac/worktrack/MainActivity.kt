@@ -23,6 +23,7 @@ class MainActivity : AppCompatActivity() {
         val nav = findViewById<BottomNavigationView>(R.id.bottom_nav)
         nav.setOnItemSelectedListener { item ->
             val fragment: Fragment = when (item.itemId) {
+                R.id.nav_today -> ScheduleFragment()
                 R.id.nav_reminders -> RemindersFragment()
                 R.id.nav_files -> FilesFragment()
                 else -> PlaceholderFragment("Monitor")
@@ -30,7 +31,7 @@ class MainActivity : AppCompatActivity() {
             supportFragmentManager.beginTransaction().replace(R.id.content, fragment).commit()
             true
         }
-        if (savedInstanceState == null) nav.selectedItemId = R.id.nav_reminders
+        if (savedInstanceState == null) nav.selectedItemId = R.id.nav_today
     }
 
     private fun maybeRequestNotificationPermission() {
