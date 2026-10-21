@@ -1,0 +1,20 @@
+# Gradle / Android
+.gradle/
+.kotlin/
+build/
+app/build/
+local.properties
+*.apk
+*.aab
+.idea/
+*.iml
+captures/
+.cxx/
+.externalNativeBuild/
+
+# Server
+server/node_modules/
+server/uploads/
+
+# OS
+.DS_Store
