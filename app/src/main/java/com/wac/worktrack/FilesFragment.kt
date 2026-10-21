@@ -8,7 +8,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.widget.ImageView
 import android.widget.MediaController
 import android.widget.ScrollView
 import android.widget.TextView
@@ -99,7 +98,6 @@ class FilesFragment : Fragment() {
     private fun open(file: File) {
         val ext = file.extension.lowercase()
         when (ext) {
-            in IMAGE_EXT -> { openImage(file); return }
             in VIDEO_EXT -> { openVideo(file); return }
             !in TEXT_EXT -> {
                 val size = Formatter.formatShortFileSize(requireContext(), file.length())
@@ -120,20 +118,6 @@ class FilesFragment : Fragment() {
             setPadding(48, 32, 48, 32)
         }
         val scroll = ScrollView(requireContext()).apply { addView(tv) }
-        AlertDialog.Builder(requireContext())
-            .setTitle(file.name)
-            .setView(scroll)
-            .setPositiveButton("Close", null)
-            .show()
-    }
-
-    private fun openImage(file: File) {
-        val image = ImageView(requireContext()).apply {
-            setImageURI(Uri.fromFile(file))
-            adjustViewBounds = true
-            setPadding(16, 16, 16, 16)
-        }
-        val scroll = ScrollView(requireContext()).apply { addView(image) }
         AlertDialog.Builder(requireContext())
             .setTitle(file.name)
             .setView(scroll)
@@ -180,7 +164,6 @@ class FilesFragment : Fragment() {
 
     companion object {
         private val TEXT_EXT = setOf("txt", "md", "json", "csv", "log", "xml", "html", "js", "ts", "kt", "java")
-        private val IMAGE_EXT = setOf("jpg", "jpeg", "png", "gif", "webp", "bmp")
         private val VIDEO_EXT = setOf("mp4", "3gp", "mkv", "webm", "mov")
     }
 }

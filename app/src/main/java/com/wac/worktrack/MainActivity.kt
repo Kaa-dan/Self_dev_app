@@ -25,7 +25,6 @@ class MainActivity : AppCompatActivity() {
             val fragment: Fragment = when (item.itemId) {
                 R.id.nav_reminders -> RemindersFragment()
                 R.id.nav_files -> FilesFragment()
-                R.id.nav_gallery -> GalleryFragment()
                 else -> PlaceholderFragment("Monitor")
             }
             supportFragmentManager.beginTransaction().replace(R.id.content, fragment).commit()

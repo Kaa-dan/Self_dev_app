@@ -12,9 +12,5 @@ captures/
 .cxx/
 .externalNativeBuild/
 
-# Server
-server/node_modules/
-server/uploads/
-
 # OS
 .DS_Store
