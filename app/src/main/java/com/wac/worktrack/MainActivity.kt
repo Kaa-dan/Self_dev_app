@@ -25,8 +25,9 @@ class MainActivity : AppCompatActivity() {
             val fragment: Fragment = when (item.itemId) {
                 R.id.nav_today -> ScheduleFragment()
                 R.id.nav_calendar -> CalendarFragment()
+                R.id.nav_finance -> FinanceFragment()
                 R.id.nav_files -> FilesFragment()
-                else -> PlaceholderFragment("Monitor")
+                else -> ScheduleFragment()
             }
             supportFragmentManager.beginTransaction().replace(R.id.content, fragment).commit()
             true

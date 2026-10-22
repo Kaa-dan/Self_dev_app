@@ -7,9 +7,9 @@
         android:id="@+id/nav_calendar"
         android:title="@string/tab_calendar" />
     <item
+        android:id="@+id/nav_finance"
+        android:title="@string/tab_finance" />
+    <item
         android:id="@+id/nav_files"
         android:title="@string/tab_files" />
-    <item
-        android:id="@+id/nav_monitor"
-        android:title="@string/tab_monitor" />
 </menu>
