@@ -18,7 +18,12 @@ object ReminderStore {
             val arr = JSONArray(f.readText())
             MutableList(arr.length()) { i ->
                 val o = arr.getJSONObject(i)
-                Reminder(o.getInt("id"), o.getString("title"), o.getLong("timeMillis"))
+                Reminder(
+                    id = o.getInt("id"),
+                    title = o.getString("title"),
+                    timeMillis = o.getLong("timeMillis"),
+                    repeatDaily = o.optBoolean("repeatDaily", false),
+                )
             }
         } catch (_: Exception) {
             mutableListOf()
@@ -28,7 +33,13 @@ object ReminderStore {
     fun save(context: Context, reminders: List<Reminder>) {
         val arr = JSONArray()
         reminders.forEach { r ->
-            arr.put(JSONObject().put("id", r.id).put("title", r.title).put("timeMillis", r.timeMillis))
+            arr.put(
+                JSONObject()
+                    .put("id", r.id)
+                    .put("title", r.title)
+                    .put("timeMillis", r.timeMillis)
+                    .put("repeatDaily", r.repeatDaily),
+            )
         }
         file(context).writeText(arr.toString())
     }

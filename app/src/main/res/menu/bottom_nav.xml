@@ -4,8 +4,8 @@
         android:id="@+id/nav_today"
         android:title="@string/tab_today" />
     <item
-        android:id="@+id/nav_reminders"
-        android:title="@string/tab_reminders" />
+        android:id="@+id/nav_calendar"
+        android:title="@string/tab_calendar" />
     <item
         android:id="@+id/nav_files"
         android:title="@string/tab_files" />

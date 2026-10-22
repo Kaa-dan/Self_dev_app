@@ -24,7 +24,7 @@ class MainActivity : AppCompatActivity() {
         nav.setOnItemSelectedListener { item ->
             val fragment: Fragment = when (item.itemId) {
                 R.id.nav_today -> ScheduleFragment()
-                R.id.nav_reminders -> RemindersFragment()
+                R.id.nav_calendar -> CalendarFragment()
                 R.id.nav_files -> FilesFragment()
                 else -> PlaceholderFragment("Monitor")
             }
