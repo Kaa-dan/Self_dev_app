@@ -2,7 +2,4 @@
 <resources>
     <!-- Compose draws the real theme; this only covers the window before the first frame. -->
     <style name="Theme.WorkTrack" parent="android:Theme.Material.Light.NoActionBar" />
-
-    <!-- Quick add floats over whatever is on screen; Compose draws the dialog itself. -->
-    <style name="Theme.WorkTrack.Dialog" parent="android:Theme.Translucent.NoTitleBar" />
 </resources>

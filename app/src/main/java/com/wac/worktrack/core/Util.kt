@@ -1,7 +1,9 @@
 package com.wac.worktrack.core
 
 import android.content.Context
+import com.wac.worktrack.WorkTrackApp
 import com.wac.worktrack.data.AppDatabase
+import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.DayOfWeek
@@ -13,6 +15,11 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
 
 val Context.db: AppDatabase get() = AppDatabase.get(this)
+
+/** Database write on the app scope, so it still finishes when the dialog that started it closes. */
+fun Context.write(block: suspend AppDatabase.() -> Unit) {
+    (applicationContext as WorkTrackApp).scope.launch { db.block() }
+}
 
 object Day {
     fun today(): Long = LocalDate.now().toEpochDay()
@@ -51,6 +58,7 @@ object Day {
     private val LABEL = DateTimeFormatter.ofPattern("EEE, d MMM")
     private val LONG = DateTimeFormatter.ofPattern("EEEE, d MMMM")
     private val SHORT = DateTimeFormatter.ofPattern("d MMM")
+    private val MONTH = DateTimeFormatter.ofPattern("MMMM yyyy")
 
     fun label(day: Long, today: Long = today()): String = when (day - today) {
         0L -> "Today"
@@ -62,6 +70,17 @@ object Day {
     fun long(day: Long): String = date(day).format(LONG)
 
     fun short(day: Long): String = date(day).format(SHORT)
+
+    /** "2026-10": which month a monthly payment or salary belongs to. */
+    fun monthKey(day: Long): String = date(day).let { "%04d-%02d".format(it.year, it.monthValue) }
+
+    fun monthLabel(day: Long): String = date(day).format(MONTH)
+
+    /** [dayOfMonth] in the month of [day], clamped so "31st" means the last day of shorter months. */
+    fun inMonth(day: Long, dayOfMonth: Int): Long {
+        val d = date(day)
+        return d.withDayOfMonth(dayOfMonth.coerceIn(1, d.lengthOfMonth())).toEpochDay()
+    }
 }
 
 private val TIME = DateTimeFormatter.ofPattern("h:mm a")
@@ -69,7 +88,11 @@ private val TIME = DateTimeFormatter.ofPattern("h:mm a")
 fun timeLabel(minutes: Int): String =
     LocalTime.of(minutes / 60, minutes % 60).format(TIME)
 
-fun millisTimeLabel(millis: Long): String = timeLabel(Day.minutesOfMillis(millis))
+fun durationLabel(minutes: Int): String = when {
+    minutes < 60 -> "$minutes min"
+    minutes % 60 == 0 -> "${minutes / 60} h"
+    else -> "${minutes / 60} h ${minutes % 60} min"
+}
 
 object Money {
     /** "₹1,25,000" / "₹12.50" — Indian lakh grouping, done by hand so it doesn't depend on the locale data. */
@@ -97,15 +120,8 @@ object Money {
 }
 
 object Categories {
-    val tasks = listOf("Health", "Learning", "Work", "Finance", "Home", "Personal", "Social")
     val expense = listOf(
-        "Food", "Groceries", "Transport", "Shopping", "Bills", "Rent", "Health",
-        "Entertainment", "Education", "Savings", "Other",
+        "Food", "Groceries", "Transport", "Shopping", "Bills", "Health", "Entertainment", "Family", "Other",
     )
-    val income = listOf("Salary", "Freelance", "Interest", "Gift", "Refund", "Other")
-    val methods = listOf("UPI", "Card", "Cash", "Bank", "Other")
-    const val UNCATEGORIZED = "Uncategorized"
-
-    /** Expenses in this category are money set aside (goals, auto-save), not money spent. */
-    const val SAVINGS = "Savings"
+    val payables = listOf("EMI", "Rent", "Credit card", "Insurance", "Subscription", "Utility", "Other")
 }

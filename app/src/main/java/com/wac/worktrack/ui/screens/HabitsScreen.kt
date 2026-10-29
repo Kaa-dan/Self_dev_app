@@ -1,295 +1,196 @@
-@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
-
 package com.wac.worktrack.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavController
 import com.wac.worktrack.core.Day
-import com.wac.worktrack.core.HabitOps
-import com.wac.worktrack.core.Habits
-import com.wac.worktrack.core.Prefs
-import com.wac.worktrack.core.Scores
+import com.wac.worktrack.core.Streaks
 import com.wac.worktrack.core.db
+import com.wac.worktrack.core.durationLabel
+import com.wac.worktrack.core.timeLabel
+import com.wac.worktrack.core.write
 import com.wac.worktrack.data.Habit
-import com.wac.worktrack.data.HealthSource
+import com.wac.worktrack.data.HabitLog
+import com.wac.worktrack.notify.HabitReminders
+import com.wac.worktrack.ui.FormDialog
+import com.wac.worktrack.ui.Gap
 import com.wac.worktrack.ui.Good
 import com.wac.worktrack.ui.Hint
 import com.wac.worktrack.ui.LocalToday
-import com.wac.worktrack.ui.Warn
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-
-private val healthLabels = mapOf(
-    HealthSource.STEPS to "Steps",
-    HealthSource.SLEEP_MINUTES to "Sleep (min)",
-    HealthSource.EXERCISE_MINUTES to "Exercise (min)",
-)
-
-private val healthDefaults = mapOf(
-    HealthSource.STEPS to (8000 to "steps"),
-    HealthSource.SLEEP_MINUTES to (420 to "min sleep"),
-    HealthSource.EXERCISE_MINUTES to (30 to "min exercise"),
-)
-
-private const val HISTORY_DAYS = 3650L
-
-private data class HabitStats(val done: Set<Long>, val streak: Scores.Streaks, val counts: Map<Long, Int>) {
-    companion object {
-        val EMPTY = HabitStats(emptySet(), Scores.Streaks(0, 0, 0), emptyMap())
-    }
-}
+import com.wac.worktrack.ui.NumberInput
+import com.wac.worktrack.ui.ScoreRing
+import com.wac.worktrack.ui.Stepper
+import com.wac.worktrack.ui.TextInput
+import com.wac.worktrack.ui.TimePickerDialog
+import com.wac.worktrack.ui.rememberFlow
 
 @Composable
-fun HabitsScreen(nav: NavController) {
+fun HabitsScreen(modifier: Modifier) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val today = LocalToday.current
     val db = context.db
-    // null until the first query returns, so "nothing here" hints don't flash while loading.
-    val habitsOrNull by remember { db.habits().active() }.collectAsStateWithLifecycle(null)
-    val habits = habitsOrNull.orEmpty()
-    // The same 10-year window as Achievements, so streaks of old habits aren't cut short.
-    val logs by remember(today) { db.habits().logs(today - HISTORY_DAYS, today) }.collectAsStateWithLifecycle(emptyList())
+    val today = LocalToday.current
+    val habits = rememberFlow(emptyList<Habit>()) { db.habits().habits() }
+    val logs = rememberFlow(emptyList<HabitLog>()) { db.habits().logs() }
+    var day by remember(today) { mutableLongStateOf(today) }
     var editing by remember { mutableStateOf<Habit?>(null) }
-    val rest = com.wac.worktrack.ui.rememberRestDays(today - HISTORY_DAYS, today)
-    // Years of logs: worked out off the main thread, once per change.
-    val stats by produceState(emptyMap<Long, HabitStats>(), habits, logs, rest, today) {
-        value = withContext(Dispatchers.Default) {
-            val byHabit = logs.groupBy { it.habitId }
-            habits.associate { h ->
-                val habitLogs = byHabit[h.id].orEmpty()
-                val done = Habits.doneDays(h, habitLogs)
-                h.id to HabitStats(done, Habits.streak(h, done, today, rest), habitLogs.associate { it.date to it.count })
-            }
-        }
-    }
-    var counting by remember { mutableStateOf<Pair<Habit, Long>?>(null) }
+    var adding by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Habits") },
-                navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { editing = Habit(title = "", createdDate = today) }) { Icon(Icons.Default.Add, "Add habit") }
-        },
-    ) { padding ->
-        LazyColumn(contentPadding = padding) {
-            if (habitsOrNull?.isEmpty() == true) {
-                item {
-                    Hint(
-                        "Track yes/no habits (\"No sugar\") or counts (\"8 glasses of water\", \"20 pages\"). " +
-                            "Link one to Health Connect and steps or sleep tick it for you.",
-                    )
-                }
-            }
-            items(habits, key = { it.id }) { h ->
-                val (done, streak, counts) = stats[h.id] ?: HabitStats.EMPTY
-                Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).clickable { editing = h }) {
-                    Column(Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text(h.title, style = MaterialTheme.typography.titleMedium)
-                                val sub = listOfNotNull(
-                                    if (h.target > 1) "Goal ${h.target} ${h.unit}".trim() else null,
-                                    h.autoSource?.let { "from Health Connect" },
-                                ).joinToString(" · ")
-                                if (sub.isNotEmpty()) Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Text(
-                                "🔥 ${streak.current}" + if (streak.freezes > 0) "  ❄️ ${streak.freezes}" else "",
-                                style = MaterialTheme.typography.titleSmall,
-                            )
-                        }
-                        val last30 = done.count { it > today - 30 }
+    val doneByHabit = remember(logs) { logs.groupBy({ it.habitId }, { it.date }).mapValues { it.value.toSet() } }
+    val due = habits.filter { it.createdDay <= day }
+    val doneCount = due.count { day in doneByHabit[it.id].orEmpty() }
+
+    Box(modifier) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 88.dp)) {
+            Card(Modifier.fillMaxWidth().padding(16.dp)) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    ScoreRing(if (due.isEmpty()) null else doneCount * 100 / due.size, size = 72.dp, stroke = 8.dp)
+                    Gap(16.dp)
+                    Column {
+                        Text("$doneCount of ${due.size} done", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        val streak = Streaks.dayStreak(habits, logs, today)
                         Text(
-                            "$last30 of last 30 days · best ${streak.best}",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            "🔥 $streak-day streak" + (Streaks.badgeFor(streak)?.let { " · ${it.emoji} ${it.name}" } ?: ""),
+                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        if (Habits.atRisk(h, done, today, rest)) {
-                            Text("⚠ Missed yesterday — don't miss twice.", color = Warn, style = MaterialTheme.typography.bodySmall)
-                        }
-                        Spacer(Modifier.height(10.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            for (d in today - 6..today) {
-                                val on = d in done
-                                val count = counts[d] ?: 0
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(
-                                        Day.date(d).dayOfWeek.name.take(1), style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    Box(
-                                        Modifier.padding(top = 4.dp).size(34.dp)
-                                            .background(if (on) Good else if (count > 0) Good.copy(alpha = 0.3f) else Color.Transparent, CircleShape)
-                                            .border(1.dp, if (on) Good else MaterialTheme.colorScheme.outline, CircleShape)
-                                            .clickable {
-                                                if (h.target > 1) counting = h to d
-                                                else scope.launch { HabitOps.tap(context, h, d) }
-                                            },
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Text(
-                                            if (h.target > 1 && count > 0) compactCount(count) else "${Day.date(d).dayOfMonth}",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = if (on) Color.White else MaterialTheme.colorScheme.onSurface,
-                                        )
-                                    }
-                                }
-                            }
-                        }
                     }
                 }
             }
-            item {
-                Hint("❄️ Every ${Scores.DAYS_PER_FREEZE} days in a row earns a streak freeze (max ${Scores.MAX_FREEZES}). A missed day uses one instead of breaking your streak.")
-                Spacer(Modifier.height(88.dp))
+            // Past days can be ticked too, for habits done but not logged; the future can't.
+            Stepper(Day.label(day, today), { day-- }, if (day < today) ({ day++ }) else null)
+            if (habits.isEmpty()) Hint("Add the habits you want to do every day, with a time and how long each takes.")
+            due.forEach { h ->
+                val done = doneByHabit[h.id].orEmpty()
+                HabitRow(
+                    h, checked = day in done, streak = Streaks.habitStreak(done, today), doneDays = done, today = today,
+                    onCheck = { on ->
+                        context.write { if (on) habits().log(HabitLog(h.id, day)) else habits().unlog(HabitLog(h.id, day)) }
+                    },
+                    onClick = { editing = h },
+                )
             }
         }
+        ExtendedFloatingActionButton(
+            onClick = { adding = true },
+            icon = { Icon(Icons.Default.Add, null) },
+            text = { Text("Habit") },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+        )
     }
 
-    editing?.let { h ->
-        HabitDialog(
-            initial = h,
-            healthOn = Prefs(context).healthConnect,
-            onDismiss = { editing = null },
-            onSave = { scope.launch { db.habits().upsert(it) }; editing = null },
-            // Archive keeps the history; it just stops showing up.
-            onArchive = if (h.id == 0L) null else ({ scope.launch { db.habits().upsert(h.copy(archived = true)) }; editing = null }),
-        )
-    }
-    counting?.let { (h, d) ->
-        var value by remember(h, d) { mutableIntStateOf(Habits.countOn(h, logs, d)) }
-        AlertDialog(
-            onDismissRequest = { counting = null },
-            title = { Text("${h.title} · ${Day.label(d, today)}") },
-            text = {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
-                    TextButton(onClick = { value = (value - 1).coerceAtLeast(0) }) { Text("−", style = MaterialTheme.typography.headlineMedium) }
-                    Text("$value / ${h.target} ${h.unit}".trim(), style = MaterialTheme.typography.titleLarge)
-                    TextButton(onClick = { value++ }) { Text("+", style = MaterialTheme.typography.headlineMedium) }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { scope.launch { HabitOps.setCount(context, h, d, value) }; counting = null }) { Text("Save") }
-            },
-            dismissButton = { TextButton(onClick = { counting = null }) { Text("Cancel") } },
-        )
+    if (adding) HabitDialog(null) { adding = false }
+    editing?.let { HabitDialog(it) { editing = null } }
+}
+
+@Composable
+private fun HabitRow(
+    habit: Habit,
+    checked: Boolean,
+    streak: Int,
+    doneDays: Set<Long>,
+    today: Long,
+    onCheck: (Boolean) -> Unit,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 4.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(checked, onCheck)
+        Column(Modifier.weight(1f)) {
+            Text(habit.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val details = listOfNotNull(
+                habit.timeMinutes?.let(::timeLabel),
+                habit.durationMinutes?.let(::durationLabel),
+                if (streak > 0) "🔥 $streak" else null,
+            )
+            if (details.isNotEmpty()) {
+                Text(details.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        // Last 7 days, oldest first.
+        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            for (d in today - 6..today) {
+                Box(
+                    Modifier.size(9.dp).background(
+                        when {
+                            d in doneDays -> Good
+                            d < habit.createdDay -> MaterialTheme.colorScheme.surface
+                            else -> MaterialTheme.colorScheme.surfaceVariant
+                        },
+                        CircleShape,
+                    ),
+                )
+            }
+        }
     }
 }
 
-private fun compactCount(n: Int) = if (n >= 1000) "${n / 1000}k" else "$n"
-
 @Composable
-private fun HabitDialog(initial: Habit, healthOn: Boolean, onDismiss: () -> Unit, onSave: (Habit) -> Unit, onArchive: (() -> Unit)?) {
-    var title by remember { mutableStateOf(initial.title) }
-    var counted by remember { mutableStateOf(initial.target > 1) }
-    var target by remember { mutableStateOf(if (initial.target > 1) initial.target.toString() else "") }
-    var unit by remember { mutableStateOf(initial.unit) }
-    var source by remember { mutableStateOf(initial.autoSource) }
-    val targetValue = if (counted) target.toIntOrNull()?.takeIf { it > 1 } else 1
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (initial.id == 0L) "New habit" else "Edit habit") },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                OutlinedTextField(title, { title = it }, label = { Text("Habit") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                FlowRow(Modifier.padding(top = 8.dp)) {
-                    FilterChip(!counted, { counted = false; source = null }, { Text("Yes / no") }, Modifier.padding(end = 6.dp))
-                    FilterChip(counted, { counted = true }, { Text("Count") })
-                }
-                if (counted) {
-                    OutlinedTextField(
-                        target, { target = it.filter(Char::isDigit).take(6) }, label = { Text("Daily goal (e.g. 8)") }, singleLine = true,
-                        modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    )
-                    OutlinedTextField(unit, { unit = it }, label = { Text("Unit (glasses, pages…)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                }
-                Text("Tick automatically from Health Connect", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
-                FlowRow {
-                    FilterChip(source == null, { source = null }, { Text("Off") }, Modifier.padding(end = 4.dp))
-                    healthLabels.forEach { (s, label) ->
-                        FilterChip(source == s, {
-                            source = s
-                            counted = true
-                            val (t, u) = healthDefaults.getValue(s)
-                            target = t.toString()
-                            unit = u
-                        }, { Text(label) }, Modifier.padding(end = 4.dp))
-                    }
-                }
-                if (source != null && !healthOn) {
-                    Text(
-                        "Turn on Health Connect in Settings for this to work.",
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
-                    )
-                }
+private fun HabitDialog(existing: Habit?, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val today = LocalToday.current
+    var name by remember { mutableStateOf(existing?.name ?: "") }
+    var time by remember { mutableStateOf(existing?.timeMinutes) }
+    var duration by remember { mutableStateOf(existing?.durationMinutes?.toString() ?: "") }
+    var pickTime by remember { mutableStateOf(false) }
+    FormDialog(
+        if (existing == null) "New habit" else "Edit habit",
+        canSave = name.isNotBlank(), onDismiss = onDismiss,
+        onSave = {
+            val habit = (existing ?: Habit(name = "", timeMinutes = null, durationMinutes = null, createdDay = today))
+                .copy(name = name.trim(), timeMinutes = time, durationMinutes = duration.toIntOrNull()?.takeIf { it > 0 })
+            context.write {
+                val id = habits().save(habit)
+                HabitReminders.schedule(context, if (existing == null) habit.copy(id = id) else habit)
             }
         },
-        confirmButton = {
-            TextButton(enabled = title.isNotBlank() && targetValue != null, onClick = {
-                onSave(initial.copy(title = title.trim(), target = targetValue!!, unit = if (counted) unit.trim() else "", autoSource = source))
-            }) { Text("Save") }
-        },
-        dismissButton = {
-            Row {
-                if (onArchive != null) TextButton(onClick = onArchive) { Text("Archive") }
-                TextButton(onClick = onDismiss) { Text("Cancel") }
+        onDelete = existing?.let {
+            {
+                HabitReminders.cancel(context, it.id)
+                context.write { habits().delete(it) }
             }
         },
-    )
+    ) {
+        TextInput(name, { name = it }, "Habit (e.g. Morning walk)")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedButton(onClick = { pickTime = true }, modifier = Modifier.weight(1f)) {
+                Text(time?.let { "At ${timeLabel(it)} · reminder on" } ?: "Time (optional)")
+            }
+            if (time != null) TextButton(onClick = { time = null }) { Text("Clear") }
+        }
+        NumberInput(duration, { duration = it }, "Duration in minutes", hint = "Optional, e.g. 30")
+    }
+    if (pickTime) TimePickerDialog(time, { pickTime = false }) { time = it; pickTime = false }
 }

@@ -6,24 +6,17 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
-// Firebase (Google Sign-In + cloud backup) switches on once app/google-services.json exists.
-// Without it the app still runs fully offline.
-if (file("google-services.json").exists()) {
-    apply(plugin = "com.google.gms.google-services")
-}
-
 android {
     namespace = "com.wac.worktrack"
     compileSdk = 37
 
     defaultConfig {
-        // Differs from the code namespace: the old com.wac.worktrack id is tied to a retired
-        // Firebase project, and Google allows each package + SHA-1 pair in only one project.
-        applicationId = "com.nithinraj.worktrack"
+        // Own id so the simple app installs next to the full WorkTrack app instead of replacing it.
+        applicationId = "com.nithinraj.worktrack.simple"
         minSdk = 26
         targetSdk = 37
-        versionCode = 3
-        versionName = "3.0"
+        versionCode = 1
+        versionName = "1.0"
     }
 
     // Release signing key, read from keystore.properties in the project root (git-ignored).
@@ -76,35 +69,11 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
-    implementation("androidx.navigation:navigation-compose:2.10.2")
-    implementation("androidx.fragment:fragment-ktx:1.9.1")
-
-    // App lock (fingerprint / face / screen-lock PIN)
-    implementation("androidx.biometric:biometric:1.1.0")
-
-    // Location reminders (geofences)
-    implementation("com.google.android.gms:play-services-location:21.4.0")
-
-    // Health Connect (read-only steps, sleep, workouts)
-    implementation("androidx.health.connect:connect-client:1.1.0")
 
     // Local database
     implementation("androidx.room:room-runtime:2.8.5")
     implementation("androidx.room:room-ktx:2.8.5")
     ksp("androidx.room:room-compiler:2.8.5")
-
-    // Background work (daily cloud backup)
-    implementation("androidx.work:work-runtime-ktx:2.12.0")
-
-    // Firebase + Google Sign-In + Google Tasks (read-only) authorization
-    implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
-    implementation("com.google.firebase:firebase-auth")
-    implementation("com.google.firebase:firebase-firestore")
-    implementation("androidx.credentials:credentials:1.6.0")
-    implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
-    implementation("com.google.android.libraries.identity.googleid:googleid:1.2.1")
-    implementation("com.google.android.gms:play-services-auth:22.0.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0")
 
     testImplementation("junit:junit:4.13.2")
 }

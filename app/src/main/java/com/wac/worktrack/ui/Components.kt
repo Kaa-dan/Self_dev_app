@@ -3,6 +3,11 @@
 package com.wac.worktrack.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Card
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -49,6 +54,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wac.worktrack.core.Day
 import com.wac.worktrack.core.Money
 
@@ -236,4 +242,125 @@ fun BackTopBar(title: String, onBack: () -> Unit, actions: @Composable androidx.
         },
         actions = actions,
     )
+}
+
+/** Dialog with a scrolling form; [onDelete] adds a Delete button for existing items. */
+@Composable
+fun FormDialog(
+    title: String,
+    canSave: Boolean,
+    onDismiss: () -> Unit,
+    onSave: () -> Unit,
+    onDelete: (() -> Unit)? = null,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                content = content,
+            )
+        },
+        confirmButton = { TextButton(enabled = canSave, onClick = { onSave(); onDismiss() }) { Text("Save") } },
+        dismissButton = {
+            Row {
+                onDelete?.let { TextButton(onClick = { it(); onDismiss() }) { Text("Delete", color = Bad) } }
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+            }
+        },
+    )
+}
+
+@Composable
+fun TextInput(value: String, onChange: (String) -> Unit, label: String, modifier: Modifier = Modifier) {
+    OutlinedTextField(value, onChange, label = { Text(label) }, singleLine = true, modifier = modifier.fillMaxWidth())
+}
+
+/** Rupee amount field; shows an error while the text isn't a positive amount. */
+@Composable
+fun MoneyInput(value: String, onChange: (String) -> Unit, label: String, optional: Boolean = false) {
+    val bad = value.isNotBlank() && Money.parse(value) == null
+    OutlinedTextField(
+        value, onChange, label = { Text("$label (₹)") }, singleLine = true, isError = bad,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        supportingText = when {
+            bad -> ({ Text("Enter an amount above zero") })
+            optional -> ({ Text("Optional") })
+            else -> null
+        },
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+/** Whole-number field (days, minutes); null while empty or not a number. */
+@Composable
+fun NumberInput(value: String, onChange: (String) -> Unit, label: String, hint: String? = null) {
+    OutlinedTextField(
+        value, { onChange(it.filter(Char::isDigit).take(4)) }, label = { Text(label) }, singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        supportingText = hint?.let { { Text(it) } },
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+/** A tappable summary tile: small label over a big value. */
+@Composable
+fun StatCard(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.onSurface,
+    sub: String? = null,
+    onClick: (() -> Unit)? = null,
+) {
+    val content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit = {
+        Column(Modifier.padding(14.dp)) {
+            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(4.dp))
+            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
+            sub?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+    if (onClick != null) Card(onClick = onClick, modifier = modifier, content = content)
+    else Card(modifier = modifier, content = content)
+}
+
+/** "Label    value" row inside a list, with an optional sub-line. */
+@Composable
+fun ItemRow(
+    title: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    sub: String? = null,
+    valueColor: Color = MaterialTheme.colorScheme.onSurface,
+    onClick: (() -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    Row(
+        modifier.fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            sub?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Gap()
+        Text(value, style = MaterialTheme.typography.titleMedium, color = valueColor)
+        trailing?.let { Gap(4.dp); it() }
+    }
+}
+
+@Composable
+fun <T> rememberFlow(initial: T, vararg keys: Any?, flow: () -> kotlinx.coroutines.flow.Flow<T>): T {
+    val f = remember(*keys) { flow() }
+    return f.collectAsStateWithLifecycle(initial).value
 }
