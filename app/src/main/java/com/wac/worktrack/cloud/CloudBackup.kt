@@ -24,7 +24,11 @@ import java.util.concurrent.TimeUnit
  * Layout: users/{uid} {chunks: {table: n}, updatedAt}, users/{uid}/tables/{table}_{i} {json}.
  */
 object CloudBackup {
-    private const val ROWS_PER_DOC = 400
+    /**
+     * Firestore rejects documents over 1 MiB (UTF-8 bytes, field names included), so rows are
+     * packed into chunks by size rather than count. The margin covers the other fields.
+     */
+    const val MAX_CHUNK_BYTES = 900 * 1024
 
     /** Firestore allows 500 writes and 10 MiB per batch; stay under both. */
     private const val BATCH_OPS = 450
@@ -64,14 +68,18 @@ object CloudBackup {
         }
         for ((table, all) in Snapshot.dump(context)) {
             rows += all.size
-            val parts = all.chunked(ROWS_PER_DOC)
+            val parts = try {
+                chunk(all.map { it.toString() })
+            } catch (e: IllegalArgumentException) {
+                error("A row in $table is too big for the cloud (${e.message}). Use Settings → Export instead.")
+            }
             chunks[table] = parts.size
-            parts.forEachIndexed { i, part ->
-                val json = JSONArray(part).toString()
-                flushIfFull(json.length)
+            parts.forEachIndexed { i, json ->
+                val size = json.utf8Size()
+                flushIfFull(size)
                 batch.set(doc.collection("tables").document("${table}_$i"), mapOf("table" to table, "chunk" to i, "json" to json))
                 ops++
-                bytes += json.length
+                bytes += size
             }
             val old = (oldChunks[table] as? Number)?.toInt() ?: 0
             for (i in parts.size until old) {
@@ -85,6 +93,37 @@ object CloudBackup {
         Prefs(context).lastBackupMillis = System.currentTimeMillis()
         rows
     }
+
+    /**
+     * Packs JSON rows into JSON arrays of at most [maxBytes] UTF-8 bytes each, keeping row order.
+     * Restore just concatenates the arrays, so older backups (400 rows per chunk) still load.
+     */
+    fun chunk(rows: List<String>, maxBytes: Int = MAX_CHUNK_BYTES): List<String> {
+        val out = mutableListOf<String>()
+        val current = StringBuilder("[")
+        var size = 2 // "[" + "]"
+        for (row in rows) {
+            val rowSize = row.utf8Size()
+            require(rowSize + 2 <= maxBytes) { "${rowSize / 1024} KB" }
+            // +1 for the "," before every row but the first.
+            if (size > 2 && size + rowSize + 1 > maxBytes) {
+                out += current.append(']').toString()
+                current.setLength(0)
+                current.append('[')
+                size = 2
+            }
+            if (size > 2) {
+                current.append(',')
+                size++
+            }
+            current.append(row)
+            size += rowSize
+        }
+        if (current.length > 1) out += current.append(']').toString()
+        return out
+    }
+
+    private fun String.utf8Size(): Int = toByteArray(Charsets.UTF_8).size
 
     /** Replaces all local data with the cloud copy. Returns rows restored, or -1 if there's no backup. */
     suspend fun restore(context: Context): Int = online { restoreNow(context) }
