@@ -17,7 +17,9 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.wac.worktrack"
+        // Differs from the code namespace: the old com.wac.worktrack id is tied to a retired
+        // Firebase project, and Google allows each package + SHA-1 pair in only one project.
+        applicationId = "com.nithinraj.worktrack"
         minSdk = 26
         targetSdk = 37
         versionCode = 3

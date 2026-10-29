@@ -85,10 +85,13 @@ Stack: Gradle 9.4.1 · AGP 9.2.1 · Kotlin 2.3.21 · Compose BOM 2026.09 · Room
 
 ## Firebase setup (turns on sign-in + backup)
 
+Current project: **`worktrack-nithin`** on nithinraj.dev@gmail.com (Spark plan). Full guide: `docs/BACKEND.md`.
+
 1. Firebase console → create a project (use your personal Google account).
-2. Add an Android app with package `com.wac.worktrack` and this SHA-1 (debug key):
-   `41:BB:CC:D3:56:D0:76:A3:0F:8B:01:07:3A:E8:D1:4E:30:1C:C6:4B`
-   (get it again with `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android`)
+2. Add an Android app with package `com.nithinraj.worktrack` (the `applicationId`; the code
+   namespace stays `com.wac.worktrack`) and the SHA-1 of every key that signs the APK:
+   debug: `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android`
+   release: `keytool -list -v -keystore <storeFile> -alias <keyAlias>` (values from `keystore.properties`)
 3. Authentication → Sign-in method → enable **Google**.
 4. Firestore Database → create (region e.g. `asia-south1`), then paste `firestore.rules` into the Rules tab.
 5. Download `google-services.json` into `app/` and rebuild. (It is git-ignored.)

@@ -45,7 +45,8 @@ shape the rules and console config must allow.
 - The app reads the OAuth **web client id** from the string resource `default_web_client_id`,
   which the Google Services Gradle plugin generates from `google-services.json`. That entry
   only exists if the **Google sign-in provider was enabled before you downloaded the file**.
-- Package name: `com.wac.worktrack`
+- Package name (`applicationId`): `com.nithinraj.worktrack`. The Kotlin namespace is still
+  `com.wac.worktrack`; only the application id is registered in Firebase.
 - The SHA-1 of the key that signs the APK must be registered in Firebase (see 3.2).
 
 ### 2.2 Firestore data layout
@@ -117,23 +118,22 @@ Firebase to a project.
 ### 3.1 Create the project
 
 1. Go to <https://console.firebase.google.com> → **Add project**.
-2. Name it e.g. `worktrack-personal`. Google Analytics: **off** (the app doesn't use it).
+2. Name it e.g. `worktrack-nithin` (the current project). Google Analytics: **off** (the app doesn't use it).
 3. Plan: **Spark (free)** is enough (see section 7).
 
 ### 3.2 Register the Android app
 
 1. Project overview → **Add app** → Android.
-2. Package name: `com.wac.worktrack` (must match exactly).
+2. Package name: `com.nithinraj.worktrack` (must match `applicationId` exactly).
 3. Nickname: `WorkTrack`.
-4. **Debug signing certificate SHA-1**, from the build machine's debug keystore:
-
-   ```
-   41:BB:CC:D3:56:D0:76:A3:0F:8B:01:07:3A:E8:D1:4E:30:1C:C6:4B
-   ```
+4. **Signing certificate SHA-1s**: add one for every key that signs an APK you install
+   (the build PC's debug keystore, and the release keystore from `keystore.properties`).
 
    > ⚠️ The SHA-1 belongs to the keystore that **signs the APK**, not to the machine doing the
-   > Firebase setup. This value is the build PC's `~/.android/debug.keystore`. If the APK is ever
-   > built on another machine (or with a release key), add that key's SHA-1 too:
+   > Firebase setup. If a ⚠️ "Another project contains an OAuth 2.0 client…" warning appears, that
+   > package + SHA-1 pair is still registered in another project and sign-in will fail; remove it
+   > there, or use a different package name. Add more keys later in
+   > Project settings → Your apps → **Add fingerprint**. Get the debug one with:
    > Project settings → Your apps → **Add fingerprint**. Get it with:
    >
    > ```bash
@@ -319,7 +319,9 @@ the only copy that survives losing **both** the phone and the Firebase account.
 
 1. Set up the new Firebase project: sections 3.1–3.8 of this guide.
 2. Replace `app/google-services.json` with the new one, rebuild, install over the old app
-   (`adb install -r …`; data stays on the phone).
+   (`adb install -r …`; data stays on the phone). If the switch also changed `applicationId`
+   (as the move to `com.nithinraj.worktrack` did), the new build installs as a separate app:
+   Export from the old app first, Import in the new one, then uninstall the old app.
 3. Settings → Sign out → **Sign in with Google** using the new account.
 4. Settings → **Back up now**. Everything on the phone is now in the new project.
 
@@ -368,7 +370,7 @@ route only if you can't run the app.
 ## 10. Checklist
 
 - [ ] Firebase project created on personal Gmail
-- [ ] Android app `com.wac.worktrack` registered with SHA-1 `41:BB:…:4B`
+- [ ] Android app `com.nithinraj.worktrack` registered with debug + release SHA-1s (no ⚠️ warning)
 - [ ] Authentication → Google provider enabled
 - [ ] Firestore `(default)` created in `asia-south1`
 - [ ] `firestore.rules` published
