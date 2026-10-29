@@ -18,3 +18,7 @@ firebase-debug.log
 
 # OS
 .DS_Store
+
+# Release signing (keep out of the repo)
+keystore.properties
+*.jks

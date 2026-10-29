@@ -73,6 +73,12 @@ ANDROID_HOME=/home/wac/.local/android-sdk \
 ```
 APK: `app/build/outputs/apk/debug/app-debug.apk`
 Install: `~/.local/bin/adb install -r app/build/outputs/apk/debug/app-debug.apk`
+Release (for daily use; signed, not debuggable): `./gradlew assembleRelease` →
+`app/build/outputs/apk/release/app-release.apk`. Needs `keystore.properties` in the project root
+(git-ignored) pointing at the release keystore; its SHA-1 must be registered in Firebase.
+**Back up the keystore and keystore.properties**: without them you can't install updates over the
+app, only uninstall (which deletes the phone's data) and reinstall.
+
 Tests: `./gradlew :app:testDebugUnitTest` (SMS parser, quick-add parser, scores/streaks/freezes, rest days, medicines, important dates, bills, auto-schedule, checklists, money)
 
 Stack: Gradle 9.4.1 · AGP 9.2.1 · Kotlin 2.3.21 · Compose BOM 2026.09 · Room 2.8 · compileSdk 37 · minSdk 26
