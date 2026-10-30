@@ -1,5 +1,11 @@
 package com.wac.worktrack.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.wac.worktrack.data.Income
+import com.wac.worktrack.data.PendingTxn
+import com.wac.worktrack.sms.SmsImport
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -164,6 +172,10 @@ private fun SpendTab(banks: List<Bank>) {
     var editLimit by remember { mutableStateOf(false) }
     var receiveSalary by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<Expense?>(null) }
+    val incomes = rememberFlow(emptyList<Income>(), range.first) { db.money().incomes(range.first, range.last) }
+    var deletingIncome by remember { mutableStateOf<Income?>(null) }
+
+    SmsPending(banks)
 
     val total = expenses.sumOf { it.amountPaise }
     val limit = settings.monthlyLimitPaise
@@ -252,6 +264,21 @@ private fun SpendTab(banks: List<Bank>) {
         }
     }
 
+    if (incomes.isNotEmpty()) {
+        SectionHeader("Received")
+        AppCard(Pad, padding = PaddingValues(6.dp)) {
+            incomes.forEach { i ->
+                ListRow(
+                    i.source.ifBlank { "Money received" },
+                    sub = listOfNotNull(Day.label(i.date, today), banks.firstOrNull { it.id == i.bankId }?.name).joinToString(" · "),
+                    leading = { EmojiBubble("💰", Good) },
+                    onClick = { deletingIncome = i },
+                    trailing = { AmountText(i.amountPaise, Good, prefix = "+") },
+                )
+            }
+        }
+    }
+
     if (editSalary) {
         var amount by remember { mutableStateOf(if (settings.salaryPaise > 0) Money.input(settings.salaryPaise) else "") }
         var day by remember { mutableStateOf(settings.salaryDay.toString()) }
@@ -292,22 +319,118 @@ private fun SpendTab(banks: List<Bank>) {
             "Delete", onDismiss = { deleting = null },
         ) { context.write { money().deleteExpense(e) } }
     }
+    deletingIncome?.let { i ->
+        ConfirmDialog(
+            "Delete this money received?",
+            Money.format(i.amountPaise) + if (i.bankId != null) "\nThe amount comes back out of its bank." else "",
+            "Delete", onDismiss = { deletingIncome = null },
+        ) { context.write { money().deleteIncome(i) } }
+    }
+}
+
+/** Bank SMS waiting to be checked, or a card asking to read SMS. */
+@Composable
+private fun SmsPending(banks: List<Bank>) {
+    val context = LocalContext.current
+    val today = LocalToday.current
+    var allowed by remember { mutableStateOf(SmsImport.allowed(context)) }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        allowed = SmsImport.allowed(context)
+        SmsImport.scan(context)
+    }
+    val pending = rememberFlow(emptyList<PendingTxn>()) { context.db.money().pending() }
+    var open by remember { mutableStateOf<PendingTxn?>(null) }
+
+    if (!allowed) {
+        AppCard(Pad.padding(bottom = 12.dp), onClick = { ask.launch(SmsImport.permissions) }) {
+            Text("📩 Pick up spends from bank SMS", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Money sent or received shows up here to check before it counts. Tap to allow reading SMS.",
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+    if (pending.isNotEmpty()) {
+        Row(Pad.padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("📩 To check", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            Tag("${pending.size} from SMS", Palette.Orange)
+        }
+        AppCard(Pad.padding(bottom = 12.dp), padding = PaddingValues(6.dp)) {
+            pending.forEach { p ->
+                ListRow(
+                    p.party.ifBlank { if (p.credit) "Money received" else "Money sent" },
+                    sub = listOfNotNull(
+                        Day.label(p.date, today),
+                        banks.firstOrNull { it.id == p.bankId }?.name,
+                        p.account.takeIf { it.isNotBlank() }?.let { "••$it" },
+                        "tap to check",
+                    ).joinToString(" · "),
+                    leading = { EmojiBubble(if (p.credit) "💰" else "💸", if (p.credit) Good else Palette.Orange) },
+                    onClick = { open = p },
+                    trailing = { AmountText(p.amountPaise, if (p.credit) Good else Bad, prefix = if (p.credit) "+" else "−") },
+                )
+            }
+        }
+    }
+    open?.let { p ->
+        if (p.credit) IncomeSheet(p, banks) { open = null } else ExpenseSheet(banks, { open = null }, pending = p)
+    }
+}
+
+/** Checks a money-received SMS: edit, then add it to a bank, or delete it. */
+@Composable
+private fun IncomeSheet(pending: PendingTxn, banks: List<Bank>, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val today = LocalToday.current
+    var amount by remember { mutableStateOf(Money.input(pending.amountPaise)) }
+    var source by remember { mutableStateOf(pending.party) }
+    var date by remember { mutableLongStateOf(pending.date) }
+    var bankId by remember { mutableStateOf(pending.bankId ?: banks.firstOrNull()?.id) }
+    var pickDate by remember { mutableStateOf(false) }
+    SheetForm(
+        "💰 Money received", canSave = Money.parse(amount) != null, onDismiss = onDismiss, saveLabel = "Add received", gradient = Gradients.Mint,
+        onSave = { context.write { money().verifyIncome(pending.id, Income(0, Money.parse(amount)!!, source.trim(), date, bankId)) } },
+        onDelete = { context.write { money().setPendingStatus(pending.id, PendingTxn.IGNORED) } },
+    ) {
+        SmsText(pending.body)
+        MoneyInput(amount, { amount = it }, "How much?", big = true)
+        TextInput(source, { source = it }, "From")
+        PickerField("Date", Day.long(date), "📅", onClick = { pickDate = true })
+        BankPicker("Added to", banks, bankId) { bankId = it }
+    }
+    if (pickDate) DatePickerDialogFor(date, { pickDate = false }) { date = minOf(it, today); pickDate = false }
+}
+
+/** The SMS a pending transaction came from, to check against. */
+@Composable
+private fun SmsText(body: String) {
+    Text(
+        body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest).padding(12.dp),
+    )
 }
 
 @Composable
-private fun ExpenseSheet(banks: List<Bank>, onDismiss: () -> Unit) {
+fun ExpenseSheet(banks: List<Bank>, onDismiss: () -> Unit, pending: PendingTxn? = null) {
     val context = LocalContext.current
     val today = LocalToday.current
-    var amount by remember { mutableStateOf("") }
+    // Checking a money-sent SMS: starts from what the SMS says.
+    var amount by remember { mutableStateOf(pending?.let { Money.input(it.amountPaise) } ?: "") }
     var category by remember { mutableStateOf(Categories.expense.first()) }
-    var note by remember { mutableStateOf("") }
-    var date by remember { mutableLongStateOf(today) }
-    var bankId by remember { mutableStateOf(banks.firstOrNull()?.id) }
+    var note by remember { mutableStateOf(pending?.party ?: "") }
+    var date by remember { mutableLongStateOf(pending?.date ?: today) }
+    var bankId by remember { mutableStateOf(pending?.bankId ?: banks.firstOrNull()?.id) }
     var pickDate by remember { mutableStateOf(false) }
     SheetForm(
-        "💸 New spend", canSave = Money.parse(amount) != null, onDismiss = onDismiss, saveLabel = "Add spend", gradient = Gradients.Fire,
-        onSave = { context.write { money().addExpense(Expense(0, Money.parse(amount)!!, category, note.trim(), date, bankId)) } },
+        if (pending != null) "💸 Check spend" else "💸 New spend", canSave = Money.parse(amount) != null, onDismiss = onDismiss,
+        saveLabel = "Add spend", gradient = Gradients.Fire,
+        onSave = {
+            val expense = Expense(0, Money.parse(amount)!!, category, note.trim(), date, bankId)
+            context.write { if (pending != null) money().verifySpend(pending.id, expense) else money().addExpense(expense) }
+        },
+        onDelete = pending?.let { p -> { context.write { money().setPendingStatus(p.id, PendingTxn.IGNORED) } } },
     ) {
+        pending?.let { SmsText(it.body) }
         MoneyInput(amount, { amount = it }, "How much?", big = true)
         FieldLabel("Category")
         ChipPicker(Categories.expense, category, { it }, { category = it }, emoji = Visuals::emoji, color = Visuals::color)

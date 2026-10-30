@@ -79,7 +79,7 @@ import com.wac.worktrack.ui.rememberFlow
 import java.time.format.TextStyle
 import java.util.Locale
 
-private val habitColors = listOf(Palette.Violet, Palette.Mint, Palette.Orange, Palette.Sky, Palette.Pink, Palette.Amber, Palette.Purple)
+val habitColors = listOf(Palette.Violet, Palette.Mint, Palette.Orange, Palette.Sky, Palette.Pink, Palette.Amber, Palette.Purple)
 
 @Composable
 fun HabitsScreen(modifier: Modifier) {
@@ -142,7 +142,8 @@ fun HabitsScreen(modifier: Modifier) {
                         doneDays = done, today = today,
                         // Timers run for today only.
                         timer = if (day == today) timers.firstOrNull { it.habitId == h.id } ?: HabitTimer(h.id, today) else null,
-                        onCheck = { toggleHabit(context, h.id, day, day !in done) },
+                        // A habit with a duration is only ticked off by running its timer.
+                        onCheck = if (h.durationMinutes == null) ({ toggleHabit(context, h.id, day, day !in done) }) else null,
                         onClick = { editing = h },
                     )
                 }
@@ -202,7 +203,7 @@ private fun HabitCard(
     doneDays: Set<Long>,
     today: Long,
     timer: HabitTimer?,
-    onCheck: () -> Unit,
+    onCheck: (() -> Unit)?,
     onClick: () -> Unit,
 ) {
     AppCard(Modifier.fillMaxWidth(), onClick = onClick, padding = PaddingValues(14.dp)) {
@@ -228,8 +229,11 @@ private fun HabitCard(
                     }
                 }
             }
-            Spacer(Modifier.width(8.dp))
-            CheckCircle(checked, onCheck, size = 44.dp)
+            // No check circle for a habit with a duration: its timer completes it.
+            if (onCheck != null) {
+                Spacer(Modifier.width(8.dp))
+                CheckCircle(checked, onCheck, size = 44.dp)
+            }
         }
         val target = habit.durationMinutes
         if (target != null && timer != null) TimerRow(habit, target, timer, color, checked)
@@ -238,7 +242,7 @@ private fun HabitCard(
 
 /** Start / pause timer for a habit with a duration, with live elapsed time. */
 @Composable
-private fun TimerRow(habit: Habit, targetMinutes: Int, timer: HabitTimer, color: Color, done: Boolean) {
+fun TimerRow(habit: Habit, targetMinutes: Int, timer: HabitTimer, color: Color, done: Boolean) {
     val context = LocalContext.current
     val running = timer.runningSince != null
     // Ticks once a second while the timer runs.

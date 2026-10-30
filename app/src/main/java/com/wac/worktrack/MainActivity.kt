@@ -14,6 +14,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import com.wac.worktrack.core.Day
+import com.wac.worktrack.sms.SmsImport
 import com.wac.worktrack.ui.AppRoot
 import com.wac.worktrack.ui.LocalToday
 import com.wac.worktrack.ui.WorkTrackTheme
@@ -44,5 +45,6 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // Roll over to the new day if the app was left open past midnight.
         today = Day.today()
+        SmsImport.scan(this)
     }
 }

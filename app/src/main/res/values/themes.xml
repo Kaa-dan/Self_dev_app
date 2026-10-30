@@ -2,4 +2,8 @@
 <resources>
     <!-- Compose draws the real theme; this only covers the window before the first frame. -->
     <style name="Theme.WorkTrack" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- See-through window, so the widget's spend form slides up over the home screen. -->
+    <style name="Theme.WorkTrack.Translucent" parent="android:Theme.Translucent.NoTitleBar">
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
 </resources>

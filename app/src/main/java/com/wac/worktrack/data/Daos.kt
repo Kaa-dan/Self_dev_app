@@ -54,6 +54,49 @@ interface MoneyDao {
         expense.bankId?.let { adjustBank(it, expense.amountPaise) }
     }
 
+    // Money received
+    @Query("SELECT * FROM incomes WHERE date BETWEEN :from AND :to ORDER BY date DESC, id DESC")
+    fun incomes(from: Long, to: Long): Flow<List<Income>>
+
+    @Insert
+    suspend fun insertIncome(income: Income)
+
+    @Delete
+    suspend fun deleteIncomeRow(income: Income)
+
+    /** Deleting received money takes it back out of its bank. */
+    @Transaction
+    suspend fun deleteIncome(income: Income) {
+        deleteIncomeRow(income)
+        income.bankId?.let { adjustBank(it, -income.amountPaise) }
+    }
+
+    // Bank SMS waiting to be checked
+    @Query("SELECT * FROM pending_txns WHERE status = 0 ORDER BY date DESC, id DESC")
+    fun pending(): Flow<List<PendingTxn>>
+
+    /** Ignored when the SMS was already picked up. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertPending(txn: PendingTxn)
+
+    @Query("UPDATE pending_txns SET status = :status WHERE id = :id")
+    suspend fun setPendingStatus(id: Long, status: Int)
+
+    /** A checked money-sent SMS becomes a normal spend. */
+    @Transaction
+    suspend fun verifySpend(pendingId: Long, expense: Expense) {
+        addExpense(expense)
+        setPendingStatus(pendingId, PendingTxn.VERIFIED)
+    }
+
+    /** A checked money-received SMS goes into its bank. */
+    @Transaction
+    suspend fun verifyIncome(pendingId: Long, income: Income) {
+        insertIncome(income)
+        income.bankId?.let { adjustBank(it, income.amountPaise) }
+        setPendingStatus(pendingId, PendingTxn.VERIFIED)
+    }
+
     @Transaction
     suspend fun receiveSalary(settings: Settings, bankId: Long?, month: String) {
         bankId?.let { adjustBank(it, settings.salaryPaise) }
@@ -195,4 +238,16 @@ interface GoalDao {
 
     @Delete
     suspend fun delete(goal: Goal)
+}
+
+@Dao
+interface BlockDao {
+    @Query("SELECT * FROM app_blocks ORDER BY id DESC")
+    fun blocks(): Flow<List<AppBlock>>
+
+    @Upsert
+    suspend fun save(block: AppBlock)
+
+    @Delete
+    suspend fun delete(block: AppBlock)
 }

@@ -125,9 +125,6 @@ private fun AlarmScreen(habit: Habit, onAction: (String) -> Unit) {
                     AlarmButton("😴  ${HabitAlarms.SNOOZE_MINUTES} min", Modifier.weight(1f)) { onAction(HabitAlarms.SNOOZE) }
                     AlarmButton("Dismiss", Modifier.weight(1f)) { onAction(HabitAlarms.DISMISS) }
                 }
-                if (timed) {
-                    AlarmButton("✓  Already done") { onAction(HabitAlarms.DONE) }
-                }
             }
         }
     }

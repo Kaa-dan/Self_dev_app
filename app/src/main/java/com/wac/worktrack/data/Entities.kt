@@ -36,6 +36,43 @@ data class Expense(
     val bankId: Long?,
 )
 
+/** Money received, added to [bankId]'s balance when set. */
+@Entity(tableName = "incomes", indices = [Index("date")])
+data class Income(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val amountPaise: Long,
+    val source: String,
+    val date: Long,
+    val bankId: Long?,
+)
+
+/**
+ * A money sent / received bank SMS waiting to be checked. Kept after it is verified or ignored
+ * ([status]) so the same SMS is never picked up twice ([smsKey]).
+ */
+@Entity(tableName = "pending_txns", indices = [Index("smsKey", unique = true)])
+data class PendingTxn(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val smsKey: String,
+    val amountPaise: Long,
+    /** Money received rather than sent. */
+    val credit: Boolean,
+    /** Who it was paid to / received from, as the SMS says. */
+    val party: String,
+    val bankId: Long?,
+    /** Last digits of the account or card, when the SMS gives them. */
+    val account: String,
+    val date: Long,
+    val body: String,
+    val status: Int = PENDING,
+) {
+    companion object {
+        const val PENDING = 0
+        const val VERIFIED = 1
+        const val IGNORED = 2
+    }
+}
+
 /** A bank / app loan. [outstandingPaise] drops as linked EMIs are paid. */
 @Entity(tableName = "loans")
 data class Loan(
@@ -125,3 +162,20 @@ data class Goal(
     /** When the goal was set, for the time-elapsed ring. */
     @ColumnInfo(defaultValue = "0") val startDay: Long = 0,
 )
+
+/**
+ * Apps that can't be opened for a while: every day from [startMinutes] to [endMinutes] when [daily],
+ * otherwise until [untilMillis].
+ */
+@Entity(tableName = "app_blocks")
+data class AppBlock(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Package names, comma separated. */
+    val packages: String,
+    val daily: Boolean,
+    val startMinutes: Int = 0,
+    val endMinutes: Int = 0,
+    val untilMillis: Long = 0,
+) {
+    val packageList get() = packages.split(',').filter { it.isNotBlank() }
+}

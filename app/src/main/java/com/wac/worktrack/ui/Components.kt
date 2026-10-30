@@ -519,9 +519,35 @@ fun SheetForm(
     saveLabel: String = "Save",
     onDelete: (() -> Unit)? = null,
     gradient: List<Color> = Gradients.Primary,
+    /** Keeps Save in view below a long form instead of after it. */
+    pinSave: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    if (pinSave) {
+        ModalBottomSheet(
+            onDismissRequest = onDismiss,
+            sheetState = state,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+        ) {
+            Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding().padding(start = 22.dp, end = 22.dp, bottom = 20.dp)) {
+                Column(
+                    Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    Text(title, style = MaterialTheme.typography.headlineSmall)
+                    content()
+                }
+                Spacer(Modifier.height(12.dp))
+                GradientButton(saveLabel, { onSave(); onDismiss() }, Modifier.fillMaxWidth(), enabled = canSave, gradient = gradient)
+                onDelete?.let {
+                    TextButton(onClick = { it(); onDismiss() }, modifier = Modifier.fillMaxWidth()) { Text("Delete", color = Bad, fontWeight = FontWeight.SemiBold) }
+                }
+            }
+        }
+        return
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = state,

@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">WorkTrack Lite</string>
+    <string name="task_widget">Task &amp; spend</string>
+    <string name="task_widget_description">Your running habit timer with pause / resume, and a button to add a spend</string>
+    <string name="block_service">WorkTrack Lite app blocker</string>
+    <string name="block_service_description">Sends you back home when you open an app you blocked in WorkTrack Lite\'s Focus tab. It only looks at which app is open, never at what is on screen.</string>
 </resources>

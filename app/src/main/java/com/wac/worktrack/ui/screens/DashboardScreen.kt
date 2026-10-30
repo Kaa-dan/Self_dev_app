@@ -46,6 +46,7 @@ import com.wac.worktrack.core.db
 import com.wac.worktrack.data.Goal
 import com.wac.worktrack.data.Habit
 import com.wac.worktrack.data.HabitLog
+import com.wac.worktrack.data.HabitTimer
 import com.wac.worktrack.data.Settings
 import com.wac.worktrack.ui.AnimatedAmount
 import com.wac.worktrack.ui.AppCard
@@ -95,10 +96,16 @@ fun DashboardScreen(
     val payables = rememberFlow(emptyList()) { db.money().payables() }
     val savings = rememberFlow(emptyList()) { db.money().savings() }
     val goals = rememberFlow(emptyList<Goal>()) { db.goals().goals() }
+    val timers = rememberFlow(emptyList<HabitTimer>(), today) { db.habits().timers(today) }
 
     val doneToday = logs.filter { it.date == today }.map { it.habitId }.toSet()
     val allDone = habits.isNotEmpty() && habits.all { it.id in doneToday }
     val celebrate = rememberCelebration(allDone, habitsOrNull != null && logsOrNull != null)
+    // Timed habits started today and not yet finished, running ones first.
+    val ongoing = timers
+        .filter { (it.runningSince != null || it.accumulatedMillis > 0) && it.habitId !in doneToday }
+        .mapNotNull { t -> habits.find { it.id == t.habitId && it.durationMinutes != null }?.let { it to t } }
+        .sortedBy { it.second.runningSince == null }
 
     Box(modifier) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
@@ -110,6 +117,13 @@ fun DashboardScreen(
                 },
                 subtitle = Day.long(today),
             )
+
+            if (ongoing.isNotEmpty()) {
+                SectionHeader("In progress", action = "Habits", onAction = openHabits)
+                Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ongoing.forEach { (h, t) -> OngoingCard(h, t, habitColors[habits.indexOf(h) % habitColors.size], openHabits) }
+                }
+            }
 
             BalanceHero(
                 balance = banks.sumOf { it.balancePaise },
@@ -131,10 +145,12 @@ fun DashboardScreen(
                 ) {
                     habits.forEach { h ->
                         val done = h.id in doneToday
+                        val timed = h.durationMinutes != null
                         AppCard(
                             Modifier.width(132.dp),
                             gradient = if (done) Gradients.Mint else null,
-                            onClick = { toggleHabit(context, h.id, today, !done) },
+                            // A habit with a duration is only done by running its timer, on the Habits tab.
+                            onClick = { if (timed) openHabits() else toggleHabit(context, h.id, today, !done) },
                             padding = PaddingValues(14.dp),
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -147,7 +163,7 @@ fun DashboardScreen(
                                 color = if (done) Color.White else MaterialTheme.colorScheme.onSurface,
                             )
                             Text(
-                                if (done) "Done!" else "Tap to finish", style = MaterialTheme.typography.bodySmall,
+                                if (done) "Done!" else if (timed) "Start timer" else "Tap to finish", style = MaterialTheme.typography.bodySmall,
                                 color = if (done) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
@@ -384,4 +400,23 @@ fun goalTimeFraction(goal: Goal, today: Long): Float {
     val start = if (goal.startDay in 1..goal.endDate) goal.startDay else goal.endDate - 30
     val span = (goal.endDate - start).coerceAtLeast(1)
     return ((today - start).toFloat() / span).coerceIn(0f, 1f)
+}
+
+/** A started habit timer: live time against the goal, with pause / resume. */
+@Composable
+private fun OngoingCard(habit: Habit, timer: HabitTimer, color: Color, onClick: () -> Unit) {
+    AppCard(Modifier.fillMaxWidth(), onClick = onClick, padding = PaddingValues(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            EmojiBubble(habit.emoji, color, 44.dp)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(habit.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    if (timer.runningSince != null) "Running" else "Paused", style = MaterialTheme.typography.bodySmall,
+                    color = if (timer.runningSince != null) color else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        TimerRow(habit, habit.durationMinutes ?: return@AppCard, timer, color, done = false)
+    }
 }

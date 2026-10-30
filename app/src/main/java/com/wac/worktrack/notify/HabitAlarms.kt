@@ -77,6 +77,7 @@ object HabitAlarms {
             NotificationChannel(CH_TIMER, "Habit timers", NotificationManager.IMPORTANCE_LOW).apply {
                 description = "Shows a running habit timer"
                 setShowBadge(false)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             },
         )
     }
@@ -162,6 +163,8 @@ object HabitAlarms {
                 if (!dao.isLogged(habitId, today) && !timerRunning) ring(context, habit)
             }
             DONE -> {
+                // A habit with a duration is only done once its timer runs out.
+                if (habit.durationMinutes != null) return
                 stopRinging(context, habitId)
                 pause(context, habitId)
                 dao.log(HabitLog(habitId, today))
@@ -214,8 +217,9 @@ object HabitAlarms {
     private fun scheduleTimerUp(context: Context, habit: Habit, timer: HabitTimer) {
         val target = (habit.durationMinutes ?: return) * 60_000L
         val start = timer.runningSince ?: return
-        val left = target - timer.accumulatedMillis
-        if (left > 0) setExact(context, start + left, broadcast(context, TIMER_UP, habit.id))
+        // Already past the goal (e.g. the duration was shortened): finishes right away.
+        val left = (target - timer.accumulatedMillis).coerceAtLeast(0)
+        setExact(context, start + left, broadcast(context, TIMER_UP, habit.id))
     }
 
     /** Ongoing notification that counts down (or up, without a duration) while the timer runs. */
@@ -230,10 +234,11 @@ object HabitAlarms {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
+            // Name and countdown show on the lock screen even when sensitive content is hidden.
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setUsesChronometer(true)
             .setContentIntent(openApp(context))
             .addAction(0, "⏸ Pause", broadcast(context, PAUSE, habit.id))
-            .addAction(0, "✓ Done", broadcast(context, DONE, habit.id))
         if (target != null && target > timer.accumulatedMillis) {
             builder.setWhen(start + target - timer.accumulatedMillis).setChronometerCountDown(true)
         } else {
@@ -314,6 +319,9 @@ object HabitAlarms {
     // ------------------------------------------------------------ Plumbing
 
     fun habitId(intent: Intent) = intent.getLongExtra(EXTRA_HABIT, -1)
+
+    /** [action] for [habitId] as a tap target, e.g. the widget's pause / resume button. */
+    fun actionIntent(context: Context, action: String, habitId: Long) = broadcast(context, action, habitId)
 
     private fun ringId(habitId: Long) = (habitId * 10 + 1).toInt()
     private fun timerId(habitId: Long) = (habitId * 10 + 2).toInt()

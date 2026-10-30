@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -23,6 +24,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.wac.worktrack.ui.screens.DashboardScreen
+import com.wac.worktrack.ui.screens.FocusScreen
 import com.wac.worktrack.ui.screens.GoalsScreen
 import com.wac.worktrack.ui.screens.HabitsScreen
 import com.wac.worktrack.ui.screens.MoneyScreen
@@ -33,6 +35,7 @@ private val tabs = listOf(
     NavItem("Money", Icons.Default.AccountBalanceWallet),
     NavItem("Habits", Icons.Default.LocalFireDepartment),
     NavItem("Goals", Icons.Default.Flag),
+    NavItem("Focus", Icons.Default.Shield),
 )
 
 @Composable
@@ -59,7 +62,8 @@ fun AppRoot() {
                 )
                 1 -> MoneyScreen(modifier, MoneyTab.entries[moneyTab]) { moneyTab = it.ordinal }
                 2 -> HabitsScreen(modifier)
-                else -> GoalsScreen(modifier)
+                3 -> GoalsScreen(modifier)
+                else -> FocusScreen(modifier)
             }
         }
     }
