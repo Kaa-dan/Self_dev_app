@@ -1,5 +1,6 @@
 package com.wac.worktrack.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -91,6 +92,7 @@ data class Habit(
     val timeMinutes: Int?,
     val durationMinutes: Int?,
     val createdDay: Long,
+    @ColumnInfo(defaultValue = "✅") val emoji: String = "✅",
 )
 
 @Entity(tableName = "habit_logs", primaryKeys = ["habitId", "date"], indices = [Index("date")])
@@ -106,4 +108,7 @@ data class Goal(
     val note: String,
     val endDate: Long,
     val doneDay: Long? = null,
+    @ColumnInfo(defaultValue = "🎯") val emoji: String = "🎯",
+    /** When the goal was set, for the time-elapsed ring. */
+    @ColumnInfo(defaultValue = "0") val startDay: Long = 0,
 )

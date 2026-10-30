@@ -1,26 +1,24 @@
 package com.wac.worktrack.ui.screens
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.Card
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -31,10 +29,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.wac.worktrack.core.Day
 import com.wac.worktrack.core.Streaks
 import com.wac.worktrack.core.db
@@ -44,112 +44,134 @@ import com.wac.worktrack.core.write
 import com.wac.worktrack.data.Habit
 import com.wac.worktrack.data.HabitLog
 import com.wac.worktrack.notify.HabitReminders
-import com.wac.worktrack.ui.FormDialog
-import com.wac.worktrack.ui.Gap
+import com.wac.worktrack.ui.AppCard
+import com.wac.worktrack.ui.ChipPicker
+import com.wac.worktrack.ui.Confetti
+import com.wac.worktrack.ui.EmojiBubble
+import com.wac.worktrack.ui.EmojiPicker
+import com.wac.worktrack.ui.EmptyState
+import com.wac.worktrack.ui.FieldLabel
 import com.wac.worktrack.ui.Good
-import com.wac.worktrack.ui.Hint
+import com.wac.worktrack.ui.GradientFab
+import com.wac.worktrack.ui.Gradients
 import com.wac.worktrack.ui.LocalToday
-import com.wac.worktrack.ui.NumberInput
-import com.wac.worktrack.ui.ScoreRing
-import com.wac.worktrack.ui.Stepper
+import com.wac.worktrack.ui.Palette
+import com.wac.worktrack.ui.PickerField
+import com.wac.worktrack.ui.ProgressRing
+import com.wac.worktrack.ui.ScreenTitle
+import com.wac.worktrack.ui.SheetForm
+import com.wac.worktrack.ui.Tag
 import com.wac.worktrack.ui.TextInput
 import com.wac.worktrack.ui.TimePickerDialog
+import com.wac.worktrack.ui.Visuals
+import com.wac.worktrack.ui.bounceClick
+import com.wac.worktrack.ui.brush
 import com.wac.worktrack.ui.rememberFlow
+import java.time.format.TextStyle
+import java.util.Locale
+
+private val habitColors = listOf(Palette.Violet, Palette.Mint, Palette.Orange, Palette.Sky, Palette.Pink, Palette.Amber, Palette.Purple)
 
 @Composable
 fun HabitsScreen(modifier: Modifier) {
     val context = LocalContext.current
     val db = context.db
     val today = LocalToday.current
-    val habits = rememberFlow(emptyList<Habit>()) { db.habits().habits() }
-    val logs = rememberFlow(emptyList<HabitLog>()) { db.habits().logs() }
+    val habitsOrNull = rememberFlow<List<Habit>?>(null) { db.habits().habits() }
+    val logsOrNull = rememberFlow<List<HabitLog>?>(null) { db.habits().logs() }
+    val habits = habitsOrNull.orEmpty()
+    val logs = logsOrNull.orEmpty()
     var day by remember(today) { mutableLongStateOf(today) }
     var editing by remember { mutableStateOf<Habit?>(null) }
     var adding by remember { mutableStateOf(false) }
 
     val doneByHabit = remember(logs) { logs.groupBy({ it.habitId }, { it.date }).mapValues { it.value.toSet() } }
+    val doneByDay = remember(logs) { Streaks.byDay(logs) }
     val due = habits.filter { it.createdDay <= day }
     val doneCount = due.count { day in doneByHabit[it.id].orEmpty() }
+    val todayAllDone = habits.isNotEmpty() && Streaks.allDone(habits, doneByDay, today)
+    val celebrate = rememberCelebration(todayAllDone, habitsOrNull != null && logsOrNull != null)
+    val streak = Streaks.dayStreak(habits, logs, today)
 
     Box(modifier) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 88.dp)) {
-            Card(Modifier.fillMaxWidth().padding(16.dp)) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    ScoreRing(if (due.isEmpty()) null else doneCount * 100 / due.size, size = 72.dp, stroke = 8.dp)
-                    Gap(16.dp)
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 110.dp)) {
+            ScreenTitle("Habits", subtitle = "Small steps, every day")
+
+            AppCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), gradient = Gradients.Primary) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val fraction = if (due.isEmpty()) 0f else doneCount.toFloat() / due.size
+                    ProgressRing(fraction, size = 104.dp, stroke = 11.dp, gradient = listOf(Color.White, Color(0xFFD9D2FF)), track = Color.White.copy(alpha = 0.22f)) {
+                        Text("${(fraction * 100).toInt()}%", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                    }
+                    Spacer(Modifier.width(18.dp))
                     Column {
-                        Text("$doneCount of ${due.size} done", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        val streak = Streaks.dayStreak(habits, logs, today)
+                        Text(Day.label(day, today), color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelLarge)
+                        Text("$doneCount of ${due.size} done", color = Color.White, style = MaterialTheme.typography.headlineSmall)
+                        Spacer(Modifier.height(6.dp))
                         Text(
-                            "🔥 $streak-day streak" + (Streaks.badgeFor(streak)?.let { " · ${it.emoji} ${it.name}" } ?: ""),
-                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            "🔥 $streak-day streak" + (Streaks.badgeFor(streak)?.let { "  ${it.emoji}" } ?: ""),
+                            Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.18f)).padding(horizontal = 12.dp, vertical = 5.dp),
+                            color = Color.White, style = MaterialTheme.typography.labelLarge,
                         )
                     }
                 }
             }
-            // Past days can be ticked too, for habits done but not logged; the future can't.
-            Stepper(Day.label(day, today), { day-- }, if (day < today) ({ day++ }) else null)
-            if (habits.isEmpty()) Hint("Add the habits you want to do every day, with a time and how long each takes.")
-            due.forEach { h ->
-                val done = doneByHabit[h.id].orEmpty()
-                HabitRow(
-                    h, checked = day in done, streak = Streaks.habitStreak(done, today), doneDays = done, today = today,
-                    onCheck = { on ->
-                        context.write { if (on) habits().log(HabitLog(h.id, day)) else habits().unlog(HabitLog(h.id, day)) }
-                    },
-                    onClick = { editing = h },
-                )
+
+            WeekStrip(habits, doneByDay, today, day) { day = it }
+
+            if (habitsOrNull != null && habits.isEmpty()) {
+                EmptyState("🌱", "No habits yet", "Add the things you want to do every day — with a time and how long each takes.")
+            }
+            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                due.forEachIndexed { i, h ->
+                    val done = doneByHabit[h.id].orEmpty()
+                    HabitCard(
+                        h, habitColors[i % habitColors.size], checked = day in done, streak = Streaks.habitStreak(done, today),
+                        doneDays = done, today = today,
+                        onCheck = { toggleHabit(context, h.id, day, day !in done) },
+                        onClick = { editing = h },
+                    )
+                }
             }
         }
-        ExtendedFloatingActionButton(
-            onClick = { adding = true },
-            icon = { Icon(Icons.Default.Add, null) },
-            text = { Text("Habit") },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
-        )
+        GradientFab("Habit", { adding = true }, Modifier.align(Alignment.BottomEnd).padding(20.dp))
+        Confetti(celebrate)
     }
 
-    if (adding) HabitDialog(null) { adding = false }
-    editing?.let { HabitDialog(it) { editing = null } }
+    if (adding) HabitSheet(null) { adding = false }
+    editing?.let { HabitSheet(it) { editing = null } }
 }
 
+/** Last 7 days; each shows how much of that day was done. Tap to view / tick that day. */
 @Composable
-private fun HabitRow(
-    habit: Habit,
-    checked: Boolean,
-    streak: Int,
-    doneDays: Set<Long>,
-    today: Long,
-    onCheck: (Boolean) -> Unit,
-    onClick: () -> Unit,
-) {
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 4.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Checkbox(checked, onCheck)
-        Column(Modifier.weight(1f)) {
-            Text(habit.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val details = listOfNotNull(
-                habit.timeMinutes?.let(::timeLabel),
-                habit.durationMinutes?.let(::durationLabel),
-                if (streak > 0) "🔥 $streak" else null,
-            )
-            if (details.isNotEmpty()) {
-                Text(details.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        // Last 7 days, oldest first.
-        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            for (d in today - 6..today) {
+private fun WeekStrip(habits: List<Habit>, doneByDay: Map<Long, Set<Long>>, today: Long, selected: Long, onSelect: (Long) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        for (d in today - 6..today) {
+            val on = d == selected
+            val due = habits.filter { it.createdDay <= d }
+            val fraction = if (due.isEmpty()) 0f else due.count { it.id in doneByDay[d].orEmpty() }.toFloat() / due.size
+            val text by animateColorAsState(if (on) Color.White else MaterialTheme.colorScheme.onSurface, label = "day")
+            Column(
+                Modifier.weight(1f).clip(RoundedCornerShape(18.dp))
+                    .then(if (on) Modifier.background(Gradients.Fire.brush()) else Modifier.background(MaterialTheme.colorScheme.surfaceContainer))
+                    .bounceClick { onSelect(d) }
+                    .padding(vertical = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    Day.date(d).dayOfWeek.getDisplayName(TextStyle.NARROW, Locale.getDefault()),
+                    color = if (on) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                Text("${Day.date(d).dayOfMonth}", color = text, style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(4.dp))
                 Box(
-                    Modifier.size(9.dp).background(
+                    Modifier.size(8.dp).clip(CircleShape).background(
                         when {
-                            d in doneDays -> Good
-                            d < habit.createdDay -> MaterialTheme.colorScheme.surface
-                            else -> MaterialTheme.colorScheme.surfaceVariant
+                            fraction >= 1f -> if (on) Color.White else Good
+                            fraction > 0f -> Palette.Amber
+                            else -> if (on) Color.White.copy(alpha = 0.3f) else MaterialTheme.colorScheme.surfaceVariant
                         },
-                        CircleShape,
                     ),
                 )
             }
@@ -158,19 +180,62 @@ private fun HabitRow(
 }
 
 @Composable
-private fun HabitDialog(existing: Habit?, onDismiss: () -> Unit) {
+private fun HabitCard(
+    habit: Habit,
+    color: Color,
+    checked: Boolean,
+    streak: Int,
+    doneDays: Set<Long>,
+    today: Long,
+    onCheck: () -> Unit,
+    onClick: () -> Unit,
+) {
+    AppCard(Modifier.fillMaxWidth(), onClick = onClick, padding = PaddingValues(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            EmojiBubble(habit.emoji, color, 52.dp)
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(habit.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    habit.timeMinutes?.let { Tag("⏰ ${timeLabel(it)}", color) }
+                    habit.durationMinutes?.let { Tag("⏱ ${durationLabel(it)}", Palette.Slate) }
+                    if (streak > 0) Tag("🔥 $streak", Palette.Orange)
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    for (d in today - 6..today) {
+                        Box(
+                            Modifier.size(width = 18.dp, height = 6.dp).clip(CircleShape).background(
+                                if (d in doneDays) color else MaterialTheme.colorScheme.surfaceVariant,
+                            ),
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            CheckCircle(checked, onCheck, size = 44.dp)
+        }
+    }
+}
+
+private val durations = listOf(null, 5, 10, 15, 20, 30, 45, 60, 90)
+
+@Composable
+private fun HabitSheet(existing: Habit?, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val today = LocalToday.current
     var name by remember { mutableStateOf(existing?.name ?: "") }
+    var emoji by remember { mutableStateOf(existing?.emoji ?: "✅") }
     var time by remember { mutableStateOf(existing?.timeMinutes) }
-    var duration by remember { mutableStateOf(existing?.durationMinutes?.toString() ?: "") }
+    var duration by remember { mutableStateOf(existing?.durationMinutes) }
     var pickTime by remember { mutableStateOf(false) }
-    FormDialog(
+    SheetForm(
         if (existing == null) "New habit" else "Edit habit",
         canSave = name.isNotBlank(), onDismiss = onDismiss,
         onSave = {
             val habit = (existing ?: Habit(name = "", timeMinutes = null, durationMinutes = null, createdDay = today))
-                .copy(name = name.trim(), timeMinutes = time, durationMinutes = duration.toIntOrNull()?.takeIf { it > 0 })
+                .copy(name = name.trim(), emoji = emoji, timeMinutes = time, durationMinutes = duration)
             context.write {
                 val id = habits().save(habit)
                 HabitReminders.schedule(context, if (existing == null) habit.copy(id = id) else habit)
@@ -183,14 +248,22 @@ private fun HabitDialog(existing: Habit?, onDismiss: () -> Unit) {
             }
         },
     ) {
-        TextInput(name, { name = it }, "Habit (e.g. Morning walk)")
         Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(onClick = { pickTime = true }, modifier = Modifier.weight(1f)) {
-                Text(time?.let { "At ${timeLabel(it)} · reminder on" } ?: "Time (optional)")
-            }
-            if (time != null) TextButton(onClick = { time = null }) { Text("Clear") }
+            EmojiBubble(emoji, Palette.Violet, 60.dp)
+            Spacer(Modifier.width(14.dp))
+            TextInput(name, { name = it }, "Habit name", Modifier.weight(1f))
         }
-        NumberInput(duration, { duration = it }, "Duration in minutes", hint = "Optional, e.g. 30")
+        FieldLabel("Icon")
+        EmojiPicker(Visuals.habitEmojis, emoji) { emoji = it }
+        FieldLabel("When")
+        PickerField(
+            "Reminder time", time?.let { "${timeLabel(it)} · you'll get a reminder" } ?: "Any time today", "⏰",
+            onClick = { pickTime = true },
+            trailing = if (time != null) ({ TextButton(onClick = { time = null }) { Text("Clear") } }) else null,
+        )
+        FieldLabel("How long")
+        val options = (durations + listOfNotNull(duration?.takeIf { it !in durations })).sortedBy { it ?: 0 }
+        ChipPicker(options, duration, { it?.let(::durationLabel) ?: "No duration" }, { duration = it })
     }
     if (pickTime) TimePickerDialog(time, { pickTime = false }) { time = it; pickTime = false }
 }
