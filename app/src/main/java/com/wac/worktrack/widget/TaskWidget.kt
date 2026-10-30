@@ -70,17 +70,17 @@ class TaskWidget : AppWidgetProvider() {
 
             return RemoteViews(context.packageName, R.layout.widget_task).apply {
                 if (ongoing == null) {
-                    setTextViewText(R.id.widget_task, "⚡ No task running")
+                    setTextViewText(R.id.widget_task, "No habit running")
                     setViewVisibility(R.id.widget_timer, View.GONE)
                     setViewVisibility(R.id.widget_toggle, View.GONE)
                 } else {
                     val (habit, timer) = ongoing
                     val running = timer.runningSince != null
-                    setTextViewText(R.id.widget_task, "${habit.emoji} ${habit.name}" + if (running) "" else " · paused")
+                    setTextViewText(R.id.widget_task, habit.name + if (running) "" else " · paused")
                     setViewVisibility(R.id.widget_timer, View.VISIBLE)
                     setChronometer(R.id.widget_timer, SystemClock.elapsedRealtime() - timer.elapsed(now), null, running)
                     setViewVisibility(R.id.widget_toggle, View.VISIBLE)
-                    setTextViewText(R.id.widget_toggle, if (running) "⏸" else "▶")
+                    setTextViewText(R.id.widget_toggle, if (running) "Pause" else "Resume")
                     setOnClickPendingIntent(
                         R.id.widget_toggle,
                         HabitAlarms.actionIntent(context, if (running) HabitAlarms.PAUSE else HabitAlarms.START, habit.id),

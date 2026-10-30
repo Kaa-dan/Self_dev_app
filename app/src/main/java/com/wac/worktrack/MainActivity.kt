@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import com.wac.worktrack.cloud.CloudBackup
 import com.wac.worktrack.core.Day
 import com.wac.worktrack.sms.SmsImport
 import com.wac.worktrack.ui.AppRoot
@@ -46,5 +47,11 @@ class MainActivity : ComponentActivity() {
         // Roll over to the new day if the app was left open past midnight.
         today = Day.today()
         SmsImport.scan(this)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Leaving the app: push today's changes to the cloud backup.
+        CloudBackup.backupSoon(this)
     }
 }

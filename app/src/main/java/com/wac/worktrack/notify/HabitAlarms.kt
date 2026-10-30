@@ -229,7 +229,7 @@ object HabitAlarms {
         val target = habit.durationMinutes?.let { it * 60_000L }
         val builder = NotificationCompat.Builder(context, CH_TIMER)
             .setSmallIcon(R.drawable.ic_stat_check)
-            .setContentTitle("${habit.emoji} ${habit.name}")
+            .setContentTitle(habit.name)
             .setContentText(habit.durationMinutes?.let { "Timer running · ${durationLabel(it)} goal" } ?: "Timer running")
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -238,7 +238,7 @@ object HabitAlarms {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setUsesChronometer(true)
             .setContentIntent(openApp(context))
-            .addAction(0, "⏸ Pause", broadcast(context, PAUSE, habit.id))
+            .addAction(0, "Pause", broadcast(context, PAUSE, habit.id))
         if (target != null && target > timer.accumulatedMillis) {
             builder.setWhen(start + target - timer.accumulatedMillis).setChronometerCountDown(true)
         } else {
@@ -255,11 +255,11 @@ object HabitAlarms {
         if (!habit.ringAlarm) {
             val n = NotificationCompat.Builder(context, CH_REMIND)
                 .setSmallIcon(R.drawable.ic_stat_check)
-                .setContentTitle("${habit.emoji} ${habit.name}")
+                .setContentTitle(habit.name)
                 .setContentText(habit.durationMinutes?.let { "Time for it · ${durationLabel(it)}" } ?: "Time for it")
                 .setContentIntent(openApp(context))
                 .setAutoCancel(true)
-                .addAction(0, if (habit.durationMinutes != null) "▶ Start" else "✓ Done", broadcast(context, if (habit.durationMinutes != null) START else DONE, habit.id))
+                .addAction(0, if (habit.durationMinutes != null) "Start" else "Done", broadcast(context, if (habit.durationMinutes != null) START else DONE, habit.id))
                 .build()
             nm.notify(ringId(habit.id), n)
             return
@@ -273,7 +273,7 @@ object HabitAlarms {
         val timed = habit.durationMinutes != null
         val n = NotificationCompat.Builder(context, CH_ALARM)
             .setSmallIcon(R.drawable.ic_stat_check)
-            .setContentTitle("${habit.emoji} ${habit.name}")
+            .setContentTitle(habit.name)
             .setContentText(
                 listOfNotNull(habit.timeMinutes?.let(::timeLabel), habit.durationMinutes?.let(::durationLabel)).joinToString(" · ")
                     .ifBlank { "Time for your habit" },
@@ -286,8 +286,8 @@ object HabitAlarms {
             .setOngoing(true)
             // Stop ringing on its own after 5 minutes, like a clock alarm.
             .setTimeoutAfter(5 * 60_000L)
-            .addAction(0, if (timed) "▶ Start" else "✓ Done", broadcast(context, if (timed) START else DONE, habit.id))
-            .addAction(0, "😴 $SNOOZE_MINUTES min", broadcast(context, SNOOZE, habit.id))
+            .addAction(0, if (timed) "Start" else "Done", broadcast(context, if (timed) START else DONE, habit.id))
+            .addAction(0, "Snooze $SNOOZE_MINUTES min", broadcast(context, SNOOZE, habit.id))
             .addAction(0, "Dismiss", broadcast(context, DISMISS, habit.id))
             .build()
         // Insistent: the alarm sound repeats until the user acts on it.
@@ -300,7 +300,7 @@ object HabitAlarms {
         if (!canNotify(context)) return
         val n = NotificationCompat.Builder(context, CH_ALARM)
             .setSmallIcon(R.drawable.ic_stat_check)
-            .setContentTitle("🎉 ${habit.name} done!")
+            .setContentTitle("${habit.name} · done")
             .setContentText("${habit.durationMinutes?.let(::durationLabel) ?: "Time"} complete. Marked as done.")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)

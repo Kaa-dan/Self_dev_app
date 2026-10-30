@@ -1,6 +1,7 @@
 package com.wac.worktrack
 
 import android.app.Application
+import com.wac.worktrack.cloud.CloudBackup
 import com.wac.worktrack.notify.HabitAlarms
 import com.wac.worktrack.widget.TaskWidget
 import kotlinx.coroutines.CoroutineScope
@@ -15,5 +16,6 @@ class WorkTrackApp : Application() {
         super.onCreate()
         HabitAlarms.createChannels(this)
         TaskWidget.watch(this)
+        CloudBackup.schedule(this)
     }
 }

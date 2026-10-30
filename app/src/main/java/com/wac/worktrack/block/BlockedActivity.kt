@@ -19,15 +19,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.wac.worktrack.core.durationLabel
-import com.wac.worktrack.ui.GradientButton
-import com.wac.worktrack.ui.Gradients
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material3.Icon
+import com.wac.worktrack.ui.PrimaryButton
 import com.wac.worktrack.ui.WorkTrackTheme
-import com.wac.worktrack.ui.brush
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -53,20 +53,21 @@ class BlockedActivity : ComponentActivity() {
         setContent {
             WorkTrackTheme {
                 Column(
-                    Modifier.fillMaxSize().background(Gradients.Primary.brush()).safeDrawingPadding().padding(28.dp),
+                    Modifier.fillMaxSize().background(MaterialTheme.colorScheme.inverseSurface).safeDrawingPadding().padding(28.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
-                    Text("🧠", fontSize = 84.sp)
-                    Spacer(Modifier.height(16.dp))
-                    Text("Stay focused", color = Color.White, style = MaterialTheme.typography.headlineMedium)
+                    val ink = MaterialTheme.colorScheme.inverseOnSurface
+                    Icon(Icons.Rounded.Lock, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(48.dp))
+                    Spacer(Modifier.height(20.dp))
+                    Text("Stay with it", color = ink, style = MaterialTheme.typography.headlineMedium)
                     Spacer(Modifier.height(8.dp))
                     Text(
                         "$name is blocked until $endLabel\n${durationLabel(left)} to go",
-                        color = Color.White.copy(alpha = 0.9f), style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center,
+                        color = ink.copy(alpha = 0.7f), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center,
                     )
                     Spacer(Modifier.height(36.dp))
-                    GradientButton("Back to home", ::goHome, Modifier.fillMaxWidth(), gradient = Gradients.Mint)
+                    PrimaryButton("Back to home", ::goHome, Modifier.fillMaxWidth())
                 }
             }
         }

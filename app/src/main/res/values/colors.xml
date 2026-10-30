@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches the Compose paper background, so launch doesn't flash white. -->
+    <color name="window_background">#F5F1EA</color>
+</resources>

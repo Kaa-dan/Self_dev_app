@@ -20,6 +20,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.HourglassBottom
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.NightsStay
+import androidx.compose.material.icons.rounded.Repeat
+import androidx.compose.material.icons.rounded.WbTwilight
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -33,7 +40,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -51,10 +57,9 @@ import com.wac.worktrack.ui.AppCard
 import com.wac.worktrack.ui.ChipPicker
 import com.wac.worktrack.ui.EmptyState
 import com.wac.worktrack.ui.FieldLabel
-import com.wac.worktrack.ui.GradientFab
-import com.wac.worktrack.ui.Gradients
+import com.wac.worktrack.ui.AddFab
+import com.wac.worktrack.ui.IconBadge
 import com.wac.worktrack.ui.NumberInput
-import com.wac.worktrack.ui.Palette
 import com.wac.worktrack.ui.PickerField
 import com.wac.worktrack.ui.ScreenTitle
 import com.wac.worktrack.ui.SheetForm
@@ -62,6 +67,7 @@ import com.wac.worktrack.ui.Tag
 import com.wac.worktrack.ui.TextInput
 import com.wac.worktrack.ui.TimePickerDialog
 import com.wac.worktrack.ui.bounceClick
+import com.wac.worktrack.ui.muted
 import com.wac.worktrack.ui.rememberFlow
 import java.time.Instant
 import java.time.LocalDate
@@ -100,10 +106,10 @@ fun FocusScreen(modifier: Modifier) {
 
     Box(modifier) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 110.dp)) {
-            ScreenTitle("Focus", subtitle = "Block the apps that fog your brain")
+            ScreenTitle("Focus", subtitle = "Guard your attention")
             ServiceBanner()
             if (blocks != null && blocks.isEmpty()) {
-                EmptyState("🧠", "Nothing blocked", "Pick the apps that pull you in and when to block them. A running block can't be changed or turned off.")
+                EmptyState(Icons.Rounded.Block, "Nothing blocked", "Pick the apps that pull you in and when to block them. A running block can't be changed or turned off.")
             }
             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 blocks.orEmpty().forEach { b ->
@@ -118,7 +124,7 @@ fun FocusScreen(modifier: Modifier) {
                 }
             }
         }
-        GradientFab("Block", { adding = true }, Modifier.align(Alignment.BottomEnd).padding(20.dp), Gradients.Grape)
+        AddFab("Block", { adding = true }, Modifier.align(Alignment.BottomEnd).padding(20.dp))
     }
 
     if (adding) BlockSheet(null, apps) { adding = false }
@@ -136,16 +142,11 @@ private fun ServiceBanner() {
     }
     val on = remember(check) { Blocks.serviceOn(context) }
     if (on) return
-    AppCard(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), gradient = Gradients.Danger,
-        onClick = { runCatching { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) } },
-    ) {
-        Text("🛡️ Turn on the blocker", color = Color.White, style = MaterialTheme.typography.titleMedium)
-        Text(
-            "Tap, open “WorkTrack Lite app blocker” and switch it on. If it's greyed out: App info → ⋮ → Allow restricted settings, then try again.",
-            color = Color.White.copy(alpha = 0.9f), style = MaterialTheme.typography.bodyMedium,
-        )
-    }
+    WarningCard(
+        "Turn on the blocker",
+        "Tap, open “WorkTrack Lite app blocker” and switch it on. If it's greyed out: App info → ⋮ → Allow restricted settings, then try again.",
+        Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+    ) { runCatching { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) } }
 }
 
 @Composable
@@ -153,21 +154,23 @@ private fun BlockCard(block: AppBlock, apps: List<LaunchApp>, activeUntil: Long?
     val chosen = block.packageList.map { pkg -> apps.firstOrNull { it.pkg == pkg } }
     AppCard(
         Modifier.fillMaxWidth(), onClick = onClick, padding = PaddingValues(14.dp),
-        gradient = if (activeUntil != null) Gradients.Grape else null,
+        hero = activeUntil != null,
     ) {
-        val text = if (activeUntil != null) Color.White else MaterialTheme.colorScheme.onSurface
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(if (activeUntil != null) "🔒" else if (block.daily) "📅" else "⏳", style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.width(10.dp))
+            IconBadge(
+                if (activeUntil != null) Icons.Rounded.Lock else if (block.daily) Icons.Rounded.Repeat else Icons.Rounded.HourglassBottom,
+                if (activeUntil != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, 36.dp,
+            )
+            Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(scheduleLabel(block), color = text, style = MaterialTheme.typography.titleMedium)
+                Text(scheduleLabel(block), style = MaterialTheme.typography.titleMedium)
                 Text(
                     when {
                         activeUntil != null -> "Blocking now · ${durationLabel(((activeUntil - System.currentTimeMillis()) / 60_000).toInt().coerceAtLeast(1))} left"
                         block.daily -> "Not blocking right now"
                         else -> "Ended · tap to change or delete"
                     },
-                    color = if (activeUntil != null) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = muted(),
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -177,12 +180,12 @@ private fun BlockCard(block: AppBlock, apps: List<LaunchApp>, activeUntil: Long?
             chosen.take(6).forEach { app ->
                 if (app != null) Image(app.icon, app.label, Modifier.size(30.dp).clip(RoundedCornerShape(8.dp)))
             }
-            if (chosen.size > 6) Text("+${chosen.size - 6}", color = text, style = MaterialTheme.typography.labelLarge)
+            if (chosen.size > 6) Text("+${chosen.size - 6}", style = MaterialTheme.typography.labelLarge)
         }
         Spacer(Modifier.height(6.dp))
         Text(
             chosen.mapIndexed { i, app -> app?.label ?: block.packageList[i] }.joinToString(", "),
-            color = if (activeUntil != null) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = muted(),
             style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis,
         )
     }
@@ -218,10 +221,9 @@ private fun BlockSheet(existing: AppBlock?, apps: List<LaunchApp>, onDismiss: ()
     var pickStart by remember { mutableStateOf(false) }
     var pickEnd by remember { mutableStateOf(false) }
     SheetForm(
-        if (existing == null) "🧠 Block apps" else "🧠 Change block",
+        if (existing == null) "Block apps" else "Change block",
         canSave = picked.isNotEmpty() && if (daily) start != end else (minutes ?: 0) > 0,
         onDismiss = onDismiss, saveLabel = if (picked.isEmpty()) "Block" else "Block ${picked.size} app" + if (picked.size > 1) "s" else "",
-        gradient = Gradients.Grape,
         onSave = {
             val block = AppBlock(
                 id = existing?.id ?: 0, packages = picked.joinToString(","), daily = daily,
@@ -233,13 +235,13 @@ private fun BlockSheet(existing: AppBlock?, apps: List<LaunchApp>, onDismiss: ()
         onDelete = existing?.let { { context.write { blocks().delete(it) } } },
         pinSave = true,
     ) {
-        ChipPicker(listOf(false, true), daily, { if (it) "📅 Every day" else "⏳ For a while" }, { daily = it }, color = { Palette.Purple })
+        ChipPicker(listOf(false, true), daily, { if (it) "Every day" else "For a while" }, { daily = it }, icon = { if (it) Icons.Rounded.Repeat else Icons.Rounded.HourglassBottom })
         if (daily) {
-            PickerField("From", timeLabel(start), "🌅", onClick = { pickStart = true })
-            PickerField("To", timeLabel(end), "🌙", onClick = { pickEnd = true })
+            PickerField("From", timeLabel(start), Icons.Rounded.WbTwilight, onClick = { pickStart = true })
+            PickerField("To", timeLabel(end), Icons.Rounded.NightsStay, onClick = { pickEnd = true })
         } else {
             FieldLabel("Block for")
-            ChipPicker(periods, minutes.takeIf { it in periods }, { durationLabel(it ?: 0) }, { minutes = it; custom = "" }, color = { Palette.Purple })
+            ChipPicker(periods, minutes.takeIf { it in periods }, { durationLabel(it ?: 0) }, { minutes = it; custom = "" })
             NumberInput(custom, { custom = it; it.toIntOrNull()?.takeIf { m -> m > 0 }?.let { m -> minutes = m } }, "Custom minutes")
         }
         Text(
@@ -266,7 +268,7 @@ private fun BlockSheet(existing: AppBlock?, apps: List<LaunchApp>, onDismiss: ()
                     Checkbox(on, { picked = if (on) picked - app.pkg else picked + app.pkg })
                 }
             }
-        if (apps.isEmpty()) Tag("Loading apps…", Palette.Slate)
+        if (apps.isEmpty()) Tag("Loading apps…", MaterialTheme.colorScheme.onSurfaceVariant)
     }
     if (pickStart) TimePickerDialog(start, { pickStart = false }) { start = it; pickStart = false }
     if (pickEnd) TimePickerDialog(end, { pickEnd = false }) { end = it; pickEnd = false }

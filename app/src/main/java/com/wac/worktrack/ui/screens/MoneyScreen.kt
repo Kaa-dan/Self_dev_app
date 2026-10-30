@@ -20,6 +20,22 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AccountBalance
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Handshake
+import androidx.compose.material.icons.rounded.NorthEast
+import androidx.compose.material.icons.rounded.Payments
+import androidx.compose.material.icons.rounded.Receipt
+import androidx.compose.material.icons.rounded.Savings
+import androidx.compose.material.icons.rounded.Sms
+import androidx.compose.material.icons.rounded.SouthWest
+import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.Work
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -37,7 +53,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.wac.worktrack.core.Categories
 import com.wac.worktrack.core.Day
 import com.wac.worktrack.core.Finance
@@ -60,14 +75,13 @@ import com.wac.worktrack.ui.ChipPicker
 import com.wac.worktrack.ui.ConfirmDialog
 import com.wac.worktrack.ui.DatePickerDialogFor
 import com.wac.worktrack.ui.DonutChart
-import com.wac.worktrack.ui.EmojiBubble
+import com.wac.worktrack.ui.IconBadge
 import com.wac.worktrack.ui.EmptyState
 import com.wac.worktrack.ui.FieldLabel
 import com.wac.worktrack.ui.Good
-import com.wac.worktrack.ui.GradientBar
-import com.wac.worktrack.ui.GradientButton
-import com.wac.worktrack.ui.GradientFab
-import com.wac.worktrack.ui.Gradients
+import com.wac.worktrack.ui.AddFab
+import com.wac.worktrack.ui.PrimaryButton
+import com.wac.worktrack.ui.ProgressBar
 import com.wac.worktrack.ui.ListRow
 import com.wac.worktrack.ui.LocalToday
 import com.wac.worktrack.ui.MoneyInput
@@ -84,15 +98,17 @@ import com.wac.worktrack.ui.Stepper
 import com.wac.worktrack.ui.Tag
 import com.wac.worktrack.ui.TextInput
 import com.wac.worktrack.ui.Visuals
+import com.wac.worktrack.ui.muted
 import com.wac.worktrack.ui.rememberFlow
+import com.wac.worktrack.ui.tabular
 
-enum class MoneyTab(val label: String, val add: String, val gradient: List<Color>) {
-    Spend("💸 Spend", "Spend", Gradients.Fire),
-    Monthly("🗓️ Monthly", "Bill", Gradients.Ocean),
-    Banks("🏦 Banks", "Bank", Gradients.Primary),
-    Loans("📉 Loans", "Loan", Gradients.Danger),
-    People("🤝 Give / Get", "Entry", Gradients.Grape),
-    Savings("💰 Savings", "Saving", Gradients.Mint),
+enum class MoneyTab(val label: String, val add: String) {
+    Spend("Spend", "Spend"),
+    Monthly("Monthly", "Bill"),
+    Banks("Banks", "Bank"),
+    Loans("Loans", "Loan"),
+    People("Give / Get", "Entry"),
+    Savings("Savings", "Saving"),
 }
 
 /** Which add/edit sheet is open; [item] is null when adding. */
@@ -107,7 +123,7 @@ fun MoneyScreen(modifier: Modifier, tab: MoneyTab, onTab: (MoneyTab) -> Unit) {
 
     Box(modifier) {
         Column(Modifier.fillMaxSize()) {
-            ScreenTitle("Money", subtitle = "Every rupee, in one place")
+            ScreenTitle("Money", subtitle = "Every rupee accounted for")
             PillTabs(MoneyTab.entries, tab, { it.label }, onTab)
             val edit: (Any) -> Unit = { editing = Editing(tab, it) }
             // Key per tab so each tab starts scrolled to the top.
@@ -124,7 +140,7 @@ fun MoneyScreen(modifier: Modifier, tab: MoneyTab, onTab: (MoneyTab) -> Unit) {
                 }
             }
         }
-        GradientFab(tab.add, { editing = Editing(tab) }, Modifier.align(Alignment.BottomEnd).padding(20.dp), tab.gradient)
+        AddFab(tab.add, { editing = Editing(tab) }, Modifier.align(Alignment.BottomEnd).padding(20.dp))
     }
 
     editing?.let { e ->
@@ -147,7 +163,7 @@ private fun BankPicker(label: String, banks: List<Bank>, selected: Long?, onSele
     FieldLabel(label)
     ChipPicker(
         listOf<Bank?>(null) + banks, banks.firstOrNull { it.id == selected }, { it?.name ?: "Cash / none" }, { onSelect(it?.id) },
-        emoji = { if (it == null) "💵" else "🏦" },
+        icon = { if (it == null) Icons.Rounded.Payments else Icons.Rounded.AccountBalance },
     )
 }
 
@@ -179,20 +195,20 @@ private fun SpendTab(banks: List<Bank>) {
 
     val total = expenses.sumOf { it.amountPaise }
     val limit = settings.monthlyLimitPaise
-    AppCard(Pad, gradient = Gradients.Fire) {
-        Stepper(Day.monthLabel(monthDay), { monthDay = range.first - 1 }, if (range.last < today) ({ monthDay = range.last + 1 }) else null, tint = Color.White)
-        Spacer(Modifier.height(10.dp))
-        Text("Spent", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelLarge)
-        AnimatedAmount(total, MaterialTheme.typography.displaySmall, Color.White)
+    AppCard(Pad, hero = true) {
+        Stepper(Day.monthLabel(monthDay), { monthDay = range.first - 1 }, if (range.last < today) ({ monthDay = range.last + 1 }) else null)
+        Spacer(Modifier.height(12.dp))
+        Text("Spent", color = muted(), style = MaterialTheme.typography.labelLarge)
+        AnimatedAmount(total, MaterialTheme.typography.displaySmall)
         if (limit > 0) {
-            Spacer(Modifier.height(10.dp))
-            GradientBar(total.toFloat() / limit, gradient = listOf(Color.White, Color.White), track = Color.White.copy(alpha = 0.25f))
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(12.dp))
+            ProgressBar(total.toFloat() / limit, color = if (total >= limit) Bad else MaterialTheme.colorScheme.primary, track = muted().copy(alpha = 0.18f))
+            Spacer(Modifier.height(8.dp))
             Text(
-                if (total >= limit) "⚠️ ${Money.format(total - limit)} over your ${Money.format(limit)} limit"
+                if (total >= limit) "${Money.format(total - limit)} over your ${Money.format(limit)} limit"
                 else "${Money.format(limit - total)} left of ${Money.format(limit)}" +
                     if (range.first <= today && today <= range.last) " · ${Money.format(Finance.perDayLeft(limit, total, today))}/day" else "",
-                color = Color.White, style = MaterialTheme.typography.labelLarge,
+                color = muted(), style = MaterialTheme.typography.bodySmall,
             )
         }
     }
@@ -200,32 +216,32 @@ private fun SpendTab(banks: List<Bank>) {
     val received = settings.lastSalaryMonth == Day.monthKey(today)
     Row(Pad.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         StatTile(
-            "💼", "Salary", settings.salaryPaise, Palette.Mint, Modifier.weight(1f),
+            Icons.Rounded.Work, "Salary", settings.salaryPaise, Palette.Sage, Modifier.weight(1f),
             sub = when {
                 settings.salaryPaise == 0L -> "Tap to set"
-                received -> "Received ✓"
+                received -> "Received"
                 else -> "On day ${settings.salaryDay}"
             },
             onClick = { editSalary = true },
         )
         StatTile(
-            "🎯", "Monthly limit", limit, Palette.Orange, Modifier.weight(1f),
+            Icons.Rounded.Speed, "Monthly limit", limit, Palette.Ember, Modifier.weight(1f),
             sub = if (limit == 0L) "Tap to set" else "Day-to-day cap",
             onClick = { editLimit = true },
         )
     }
     if (settings.salaryPaise > 0 && !received) {
-        GradientButton("💼 Mark this month's salary received", { receiveSalary = true }, Pad.padding(top = 12.dp), gradient = Gradients.Mint)
+        PrimaryButton("Mark this month's salary received", { receiveSalary = true }, Pad.padding(top = 12.dp), outlined = true, icon = Icons.Rounded.Check)
     }
 
     if (expenses.isEmpty()) {
-        EmptyState("🧾", "Nothing spent yet", "Tap + Spend to log what you spend. It's quick.")
+        EmptyState(Icons.Rounded.Receipt, "Nothing spent yet", "Tap + Spend to log what you spend. It's quick.")
     } else {
         SectionHeader("Where it went")
         val byCategory = expenses.groupBy { it.category }.mapValues { e -> e.value.sumOf { it.amountPaise } }.entries.sortedByDescending { it.value }
         AppCard(Pad) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                DonutChart(byCategory.map { Visuals.color(it.key) to it.value.toFloat() }, size = 130.dp, stroke = 20.dp) {
+                DonutChart(byCategory.map { Visuals.color(it.key) to it.value.toFloat() }, size = 124.dp, stroke = 14.dp) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("${byCategory.size}", style = MaterialTheme.typography.titleLarge)
                         Text("categories", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -235,10 +251,10 @@ private fun SpendTab(banks: List<Bank>) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     byCategory.take(5).forEach { (cat, sum) ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(Visuals.emoji(cat), fontSize = 16.sp)
-                            Spacer(Modifier.width(6.dp))
+                            Box(Modifier.size(8.dp).clip(CircleShape).background(Visuals.color(cat)))
+                            Spacer(Modifier.width(8.dp))
                             Text(cat, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 1)
-                            Text("${(sum * 100 / total)}%", style = MaterialTheme.typography.labelLarge, color = Visuals.color(cat))
+                            Text("${(sum * 100 / total)}%", style = MaterialTheme.typography.labelLarge.tabular(), color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -255,7 +271,7 @@ private fun SpendTab(banks: List<Bank>) {
                     ListRow(
                         e.note.ifBlank { e.category },
                         sub = listOfNotNull(e.category.takeIf { e.note.isNotBlank() }, banks.firstOrNull { it.id == e.bankId }?.name).joinToString(" · ").ifBlank { null },
-                        leading = { EmojiBubble(Visuals.emoji(e.category), Visuals.color(e.category)) },
+                        leading = { IconBadge(Visuals.icon(e.category), Visuals.color(e.category), 36.dp) },
                         onClick = { deleting = e },
                         trailing = { AmountText(e.amountPaise, prefix = "−") },
                     )
@@ -271,7 +287,7 @@ private fun SpendTab(banks: List<Bank>) {
                 ListRow(
                     i.source.ifBlank { "Money received" },
                     sub = listOfNotNull(Day.label(i.date, today), banks.firstOrNull { it.id == i.bankId }?.name).joinToString(" · "),
-                    leading = { EmojiBubble("💰", Good) },
+                    leading = { IconBadge(Icons.Rounded.SouthWest, Good, 36.dp) },
                     onClick = { deletingIncome = i },
                     trailing = { AmountText(i.amountPaise, Good, prefix = "+") },
                 )
@@ -284,7 +300,7 @@ private fun SpendTab(banks: List<Bank>) {
         var day by remember { mutableStateOf(settings.salaryDay.toString()) }
         val dayNum = day.toIntOrNull()
         SheetForm(
-            "💼 Salary", canSave = parseBalance(amount) != null && dayNum in 1..31, gradient = Gradients.Mint,
+            "Salary", canSave = parseBalance(amount) != null && dayNum in 1..31,
             onDismiss = { editSalary = false },
             onSave = { context.write { money().saveSettings(settings.copy(salaryPaise = parseBalance(amount)!!, salaryDay = dayNum!!)) } },
         ) {
@@ -295,7 +311,7 @@ private fun SpendTab(banks: List<Bank>) {
     if (editLimit) {
         var amount by remember { mutableStateOf(if (limit > 0) Money.input(limit) else "") }
         SheetForm(
-            "🎯 Monthly limit", canSave = parseBalance(amount) != null, onDismiss = { editLimit = false }, gradient = Gradients.Gold,
+            "Monthly limit", canSave = parseBalance(amount) != null, onDismiss = { editLimit = false },
             onSave = { context.write { money().saveSettings(settings.copy(monthlyLimitPaise = parseBalance(amount)!!)) } },
         ) {
             MoneyInput(amount, { amount = it }, "Spend at most", big = true)
@@ -305,7 +321,7 @@ private fun SpendTab(banks: List<Bank>) {
     if (receiveSalary) {
         var bankId by remember { mutableStateOf(banks.firstOrNull()?.id) }
         SheetForm(
-            "💼 Salary received", canSave = true, onDismiss = { receiveSalary = false }, saveLabel = "Add salary", gradient = Gradients.Mint,
+            "Salary received", canSave = true, onDismiss = { receiveSalary = false }, saveLabel = "Add salary",
             onSave = { context.write { money().receiveSalary(settings, bankId, Day.monthKey(today)) } },
         ) {
             Text("${Money.format(settings.salaryPaise)} for ${Day.monthLabel(today)}", style = MaterialTheme.typography.headlineSmall, color = Good)
@@ -343,7 +359,12 @@ private fun SmsPending(banks: List<Bank>) {
 
     if (!allowed) {
         AppCard(Pad.padding(bottom = 12.dp), onClick = { ask.launch(SmsImport.permissions) }) {
-            Text("📩 Pick up spends from bank SMS", style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.Sms, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(10.dp))
+                Text("Pick up spends from bank SMS", style = MaterialTheme.typography.titleSmall)
+            }
+            Spacer(Modifier.height(4.dp))
             Text(
                 "Money sent or received shows up here to check before it counts. Tap to allow reading SMS.",
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -352,8 +373,8 @@ private fun SmsPending(banks: List<Bank>) {
     }
     if (pending.isNotEmpty()) {
         Row(Pad.padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("📩 To check", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            Tag("${pending.size} from SMS", Palette.Orange)
+            Text("To check", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            Tag("${pending.size} from SMS", MaterialTheme.colorScheme.primary, icon = Icons.Rounded.Sms)
         }
         AppCard(Pad.padding(bottom = 12.dp), padding = PaddingValues(6.dp)) {
             pending.forEach { p ->
@@ -365,7 +386,7 @@ private fun SmsPending(banks: List<Bank>) {
                         p.account.takeIf { it.isNotBlank() }?.let { "••$it" },
                         "tap to check",
                     ).joinToString(" · "),
-                    leading = { EmojiBubble(if (p.credit) "💰" else "💸", if (p.credit) Good else Palette.Orange) },
+                    leading = { IconBadge(if (p.credit) Icons.Rounded.SouthWest else Icons.Rounded.NorthEast, if (p.credit) Good else Palette.Ember, 36.dp) },
                     onClick = { open = p },
                     trailing = { AmountText(p.amountPaise, if (p.credit) Good else Bad, prefix = if (p.credit) "+" else "−") },
                 )
@@ -388,14 +409,14 @@ private fun IncomeSheet(pending: PendingTxn, banks: List<Bank>, onDismiss: () ->
     var bankId by remember { mutableStateOf(pending.bankId ?: banks.firstOrNull()?.id) }
     var pickDate by remember { mutableStateOf(false) }
     SheetForm(
-        "💰 Money received", canSave = Money.parse(amount) != null, onDismiss = onDismiss, saveLabel = "Add received", gradient = Gradients.Mint,
+        "Money received", canSave = Money.parse(amount) != null, onDismiss = onDismiss, saveLabel = "Add received",
         onSave = { context.write { money().verifyIncome(pending.id, Income(0, Money.parse(amount)!!, source.trim(), date, bankId)) } },
         onDelete = { context.write { money().setPendingStatus(pending.id, PendingTxn.IGNORED) } },
     ) {
         SmsText(pending.body)
         MoneyInput(amount, { amount = it }, "How much?", big = true)
         TextInput(source, { source = it }, "From")
-        PickerField("Date", Day.long(date), "📅", onClick = { pickDate = true })
+        PickerField("Date", Day.long(date), Icons.Rounded.CalendarMonth, onClick = { pickDate = true })
         BankPicker("Added to", banks, bankId) { bankId = it }
     }
     if (pickDate) DatePickerDialogFor(date, { pickDate = false }) { date = minOf(it, today); pickDate = false }
@@ -422,8 +443,8 @@ fun ExpenseSheet(banks: List<Bank>, onDismiss: () -> Unit, pending: PendingTxn? 
     var bankId by remember { mutableStateOf(pending?.bankId ?: banks.firstOrNull()?.id) }
     var pickDate by remember { mutableStateOf(false) }
     SheetForm(
-        if (pending != null) "💸 Check spend" else "💸 New spend", canSave = Money.parse(amount) != null, onDismiss = onDismiss,
-        saveLabel = "Add spend", gradient = Gradients.Fire,
+        if (pending != null) "Check spend" else "New spend", canSave = Money.parse(amount) != null, onDismiss = onDismiss,
+        saveLabel = "Add spend",
         onSave = {
             val expense = Expense(0, Money.parse(amount)!!, category, note.trim(), date, bankId)
             context.write { if (pending != null) money().verifySpend(pending.id, expense) else money().addExpense(expense) }
@@ -433,11 +454,11 @@ fun ExpenseSheet(banks: List<Bank>, onDismiss: () -> Unit, pending: PendingTxn? 
         pending?.let { SmsText(it.body) }
         MoneyInput(amount, { amount = it }, "How much?", big = true)
         FieldLabel("Category")
-        ChipPicker(Categories.expense, category, { it }, { category = it }, emoji = Visuals::emoji, color = Visuals::color)
+        ChipPicker(Categories.expense, category, { it }, { category = it }, icon = Visuals::icon, color = Visuals::color)
         TextInput(note, { note = it }, "Note (optional)")
         FieldLabel("When")
         ChipPicker(listOf(today, today - 1), date.takeIf { it >= today - 1 }, { if (it == today) "Today" else "Yesterday" }, { date = it ?: today })
-        PickerField("Date", Day.long(date), "📅", onClick = { pickDate = true })
+        PickerField("Date", Day.long(date), Icons.Rounded.CalendarMonth, onClick = { pickDate = true })
         BankPicker("Paid from", banks, bankId) { bankId = it }
     }
     if (pickDate) DatePickerDialogFor(date, { pickDate = false }) { date = minOf(it, today); pickDate = false }
@@ -455,22 +476,21 @@ private fun MonthlyTab(banks: List<Bank>, loans: List<Loan>, edit: (Any) -> Unit
 
     val total = payables.sumOf { it.amountPaise }
     val paid = payables.filter { Finance.isPaid(it, today) }.sumOf { it.amountPaise }
-    AppCard(Pad, gradient = Gradients.Ocean) {
+    AppCard(Pad, hero = true) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             ProgressRing(
-                if (total > 0) paid.toFloat() / total else 0f, size = 100.dp, stroke = 10.dp,
-                gradient = listOf(Color.White, Color(0xFFCFF3FF)), track = Color.White.copy(alpha = 0.22f),
-            ) { Text(if (total > 0) "${paid * 100 / total}%" else "—", color = Color.White, style = MaterialTheme.typography.titleLarge) }
-            Spacer(Modifier.width(18.dp))
+                if (total > 0) paid.toFloat() / total else 0f, size = 88.dp, stroke = 6.dp, color = Good, track = muted().copy(alpha = 0.18f),
+            ) { Text(if (total > 0) "${paid * 100 / total}%" else "—", style = MaterialTheme.typography.titleLarge.tabular()) }
+            Spacer(Modifier.width(20.dp))
             Column {
-                Text("Left to pay in ${Day.monthLabel(today).substringBefore(' ')}", color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.labelLarge)
-                AnimatedAmount(total - paid, MaterialTheme.typography.headlineMedium, Color.White)
-                Text("${Money.format(paid)} paid of ${Money.format(total)}", color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.bodySmall)
+                Text("Left to pay in ${Day.monthLabel(today).substringBefore(' ')}", color = muted(), style = MaterialTheme.typography.labelLarge)
+                AnimatedAmount(total - paid, MaterialTheme.typography.headlineMedium)
+                Text("${Money.format(paid)} paid of ${Money.format(total)}", color = muted(), style = MaterialTheme.typography.bodySmall)
             }
         }
     }
     if (payables.isEmpty()) {
-        EmptyState("🗓️", "No monthly bills yet", "Add EMIs, rent, credit card bills and subscriptions. Tick them off each month.")
+        EmptyState(Icons.Rounded.CalendarMonth, "No monthly bills yet", "Add EMIs, rent, credit card bills and subscriptions. Tick them off each month.")
     } else {
         SectionHeader("This month")
         Column(Pad, verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -480,19 +500,19 @@ private fun MonthlyTab(banks: List<Bank>, loans: List<Loan>, edit: (Any) -> Unit
                 AppCard(Modifier.fillMaxWidth(), padding = PaddingValues(6.dp)) {
                     ListRow(
                         p.title,
-                        sub = listOfNotNull(Money.format(p.amountPaise), "day ${p.dueDay}", loan?.let { "🔗 ${it.name}" }).joinToString(" · "),
-                        leading = { EmojiBubble(Visuals.emoji(p.kind), Visuals.color(p.kind)) },
+                        sub = listOfNotNull(Money.format(p.amountPaise), "day ${p.dueDay}", loan?.let { "linked to ${it.name}" }).joinToString(" · "),
+                        leading = { IconBadge(Visuals.icon(p.kind), Visuals.color(p.kind), 36.dp) },
                         onClick = { edit(p) },
                         trailing = {
                             if (isPaid) {
                                 Box(Modifier.padding(end = 4.dp)) {
-                                    GradientButton("Paid ✓", { undoing = p }, gradient = Gradients.Mint, small = true)
+                                    PrimaryButton("Paid", { undoing = p }, color = Good, small = true, outlined = true, icon = Icons.Rounded.Check)
                                 }
                             } else {
                                 Column(horizontalAlignment = Alignment.End) {
                                     DueTag(Day.inMonth(today, p.dueDay), today)
                                     Spacer(Modifier.height(6.dp))
-                                    GradientButton("Pay", { paying = p }, gradient = Gradients.Ocean, small = true)
+                                    PrimaryButton("Pay", { paying = p }, small = true)
                                 }
                             }
                         },
@@ -505,7 +525,7 @@ private fun MonthlyTab(banks: List<Bank>, loans: List<Loan>, edit: (Any) -> Unit
     paying?.let { p ->
         var bankId by remember(p) { mutableStateOf(banks.firstOrNull()?.id) }
         SheetForm(
-            "${Visuals.emoji(p.kind)} Pay ${p.title}", canSave = true, onDismiss = { paying = null }, saveLabel = "Mark paid", gradient = Gradients.Ocean,
+            "Pay ${p.title}", canSave = true, onDismiss = { paying = null }, saveLabel = "Mark paid",
             onSave = { context.write { money().payPayable(p, bankId, Day.monthKey(today)) } },
         ) {
             Text(Money.format(p.amountPaise), style = MaterialTheme.typography.headlineMedium)
@@ -531,9 +551,9 @@ private fun PayableSheet(existing: Payable?, loans: List<Loan>, onDismiss: () ->
     var loanId by remember { mutableStateOf(existing?.loanId) }
     val dayNum = day.toIntOrNull()
     SheetForm(
-        if (existing == null) "🗓️ Monthly bill" else "Edit bill",
+        if (existing == null) "Monthly bill" else "Edit bill",
         canSave = title.isNotBlank() && Money.parse(amount) != null && dayNum in 1..31,
-        onDismiss = onDismiss, gradient = Gradients.Ocean,
+        onDismiss = onDismiss,
         onSave = {
             val p = (existing ?: Payable(title = "", kind = "", amountPaise = 0, dueDay = 1, loanId = null))
                 .copy(title = title.trim(), kind = kind, amountPaise = Money.parse(amount)!!, dueDay = dayNum!!, loanId = loanId)
@@ -542,7 +562,7 @@ private fun PayableSheet(existing: Payable?, loans: List<Loan>, onDismiss: () ->
         onDelete = existing?.let { { context.write { money().deletePayable(it) } } },
     ) {
         FieldLabel("Type")
-        ChipPicker(Categories.payables, kind, { it }, { kind = it }, emoji = Visuals::emoji, color = Visuals::color)
+        ChipPicker(Categories.payables, kind, { it }, { kind = it }, icon = Visuals::icon, color = Visuals::color)
         TextInput(title, { title = it }, "Name (e.g. House rent)")
         MoneyInput(amount, { amount = it }, "Amount every month", big = true)
         NumberInput(day, { day = it }, "Due day of month (1–31)")
@@ -561,18 +581,19 @@ private fun BanksTab(banks: List<Bank>, edit: (Any) -> Unit) {
         Text("Total across ${banks.size} account${if (banks.size == 1) "" else "s"}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         AnimatedAmount(banks.sumOf { it.balancePaise }, MaterialTheme.typography.displaySmall)
     }
-    if (banks.isEmpty()) EmptyState("🏦", "No banks yet", "Add your accounts and balances. Spends, salary and bill payments update them for you.")
+    if (banks.isEmpty()) EmptyState(Icons.Rounded.AccountBalance, "No banks yet", "Add your accounts and balances. Spends, salary and bill payments update them for you.")
     Column(Pad.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         banks.forEachIndexed { i, b ->
             // Styled like a debit card.
-            AppCard(Modifier.fillMaxWidth().height(150.dp), gradient = Gradients.cards[i % Gradients.cards.size], onClick = { edit(b) }) {
+            val ink = Color(0xFFF4EDE2)
+            AppCard(Modifier.fillMaxWidth().height(148.dp), color = Palette.cards[i % Palette.cards.size], onClick = { edit(b) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(b.name, color = Color.White, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                    Text("🏦", fontSize = 26.sp)
+                    Text(b.name, color = ink, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                    Icon(Icons.Rounded.AccountBalance, null, tint = ink.copy(alpha = 0.6f))
                 }
                 Spacer(Modifier.weight(1f))
-                Text("Balance", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelMedium)
-                AnimatedAmount(b.balancePaise, MaterialTheme.typography.headlineMedium, Color.White)
+                Text("Balance", color = ink.copy(alpha = 0.65f), style = MaterialTheme.typography.labelMedium)
+                AnimatedAmount(b.balancePaise, MaterialTheme.typography.headlineMedium, ink)
             }
         }
     }
@@ -584,7 +605,7 @@ private fun BankSheet(existing: Bank?, onDismiss: () -> Unit) {
     var name by remember { mutableStateOf(existing?.name ?: "") }
     var balance by remember { mutableStateOf(existing?.let { Money.input(it.balancePaise) } ?: "") }
     SheetForm(
-        if (existing == null) "🏦 Bank account" else "Edit bank",
+        if (existing == null) "Bank account" else "Edit bank",
         canSave = name.isNotBlank() && parseBalance(balance) != null, onDismiss = onDismiss,
         onSave = { context.write { money().saveBank(Bank(existing?.id ?: 0, name.trim(), parseBalance(balance)!!)) } },
         onDelete = existing?.let { { context.write { money().deleteBank(it) } } },
@@ -598,18 +619,18 @@ private fun BankSheet(existing: Bank?, onDismiss: () -> Unit) {
 
 @Composable
 private fun LoansTab(loans: List<Loan>, edit: (Any) -> Unit) {
-    AppCard(Pad, gradient = Gradients.Danger) {
-        Text("Still to repay", color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.labelLarge)
-        AnimatedAmount(loans.sumOf { it.outstandingPaise }, MaterialTheme.typography.displaySmall, Color.White)
-        Text("EMIs: ${Money.format(loans.sumOf { it.emiPaise })} a month", color = Color.White, style = MaterialTheme.typography.bodyMedium)
+    AppCard(Pad, hero = true) {
+        Text("Still to repay", color = muted(), style = MaterialTheme.typography.labelLarge)
+        AnimatedAmount(loans.sumOf { it.outstandingPaise }, MaterialTheme.typography.displaySmall)
+        Text("EMIs: ${Money.format(loans.sumOf { it.emiPaise })} a month", color = muted(), style = MaterialTheme.typography.bodyMedium)
     }
-    if (loans.isEmpty()) EmptyState("📉", "No loans", "Add a loan and its EMI. Paying the EMI under Monthly lowers what's left.")
+    if (loans.isEmpty()) EmptyState(Icons.Rounded.AccountBalance, "No loans", "Add a loan and its EMI. Paying the EMI under Monthly lowers what's left.")
     Column(Pad.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         loans.forEach { l ->
             val repaid = (l.totalPaise - l.outstandingPaise).toFloat() / l.totalPaise.coerceAtLeast(1)
             AppCard(Modifier.fillMaxWidth(), onClick = { edit(l) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    EmojiBubble("🏦", Palette.Red)
+                    IconBadge(Icons.Rounded.AccountBalance, Bad, 36.dp)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(l.name, style = MaterialTheme.typography.titleMedium)
@@ -618,11 +639,11 @@ private fun LoansTab(loans: List<Loan>, edit: (Any) -> Unit) {
                     AmountText(l.outstandingPaise, Bad)
                 }
                 Spacer(Modifier.height(12.dp))
-                GradientBar(repaid, gradient = Gradients.Mint)
+                ProgressBar(repaid, color = Good)
                 Spacer(Modifier.height(8.dp))
                 Row {
                     Text("${(repaid * 100).toInt()}% repaid", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = Good)
-                    if (l.emiPaise > 0) Tag("EMI ${Money.format(l.emiPaise)}", Palette.Violet)
+                    if (l.emiPaise > 0) Tag("EMI ${Money.format(l.emiPaise)}", MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (l.note.isNotBlank()) Text(l.note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -646,10 +667,10 @@ private fun LoanSheet(existing: Loan?, onDismiss: () -> Unit) {
     val emiP = if (emi.isBlank()) 0L else Money.parse(emi)
     val wantsPayable = existing == null && addPayable && emiP != null && emiP > 0
     SheetForm(
-        if (existing == null) "📉 New loan" else "Edit loan",
+        if (existing == null) "New loan" else "Edit loan",
         canSave = name.isNotBlank() && totalP != null && outstandingP != null && outstandingP <= totalP && emiP != null &&
             (!wantsPayable || dueDay.toIntOrNull() in 1..31),
-        onDismiss = onDismiss, gradient = Gradients.Danger,
+        onDismiss = onDismiss,
         onSave = {
             context.write {
                 val loan = Loan(existing?.id ?: 0, name.trim(), totalP!!, outstandingP!!, emiP!!, note.trim())
@@ -690,10 +711,10 @@ private fun PeopleTab(edit: (Any) -> Unit) {
 
     val open = people.filterNot { it.settled }
     Row(Pad, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        StatTile("📤", "I have to give", open.filter { it.toGive }.sumOf { it.remainingPaise }, Bad, Modifier.weight(1f), valueColor = Bad)
-        StatTile("📥", "I have to get", open.filterNot { it.toGive }.sumOf { it.remainingPaise }, Good, Modifier.weight(1f), valueColor = Good)
+        StatTile(Icons.Rounded.NorthEast, "I have to give", open.filter { it.toGive }.sumOf { it.remainingPaise }, Bad, Modifier.weight(1f), valueColor = Bad)
+        StatTile(Icons.Rounded.SouthWest, "I have to get", open.filterNot { it.toGive }.sumOf { it.remainingPaise }, Good, Modifier.weight(1f), valueColor = Good)
     }
-    if (people.isEmpty()) EmptyState("🤝", "All square", "Track money you owe friends and family, and money they owe you.")
+    if (people.isEmpty()) EmptyState(Icons.Rounded.Handshake, "All square", "Track money you owe friends and family, and money they owe you.")
 
     @Composable
     fun Section(title: String, list: List<PersonDebt>) {
@@ -705,7 +726,7 @@ private fun PeopleTab(edit: (Any) -> Unit) {
                     d.person,
                     sub = listOfNotNull(
                         if (d.paidPaise > 0) "${Money.format(d.paidPaise)} of ${Money.format(d.amountPaise)} settled" else null,
-                        d.dueDate?.let { if (it < today) "⚠️ was due ${Day.short(it)}" else "due ${Day.label(it, today)}" },
+                        d.dueDate?.let { if (it < today) "was due ${Day.short(it)}" else "due ${Day.label(it, today)}" },
                         d.note.ifBlank { null },
                     ).joinToString(" · ").ifBlank { null },
                     leading = { Avatar(d.person) },
@@ -714,21 +735,18 @@ private fun PeopleTab(edit: (Any) -> Unit) {
                         Column(horizontalAlignment = Alignment.End) {
                             AmountText(d.remainingPaise, if (d.toGive) Bad else Good)
                             Spacer(Modifier.height(4.dp))
-                            GradientButton(
-                                if (d.toGive) "Paid" else "Got", { paying = d },
-                                gradient = if (d.toGive) Gradients.Danger else Gradients.Mint, small = true,
-                            )
+                            PrimaryButton(if (d.toGive) "Paid" else "Got", { paying = d }, color = if (d.toGive) Bad else Good, small = true, outlined = true)
                         }
                     },
                 )
             }
         }
     }
-    Section("📤 To give", open.filter { it.toGive })
-    Section("📥 To get", open.filterNot { it.toGive })
+    Section("To give", open.filter { it.toGive })
+    Section("To get", open.filterNot { it.toGive })
     val settled = people.filter { it.settled }
     if (settled.isNotEmpty()) {
-        SectionHeader("✅ Settled")
+        SectionHeader("Settled")
         AppCard(Pad, padding = PaddingValues(6.dp)) {
             settled.forEach { d ->
                 ListRow(
@@ -743,9 +761,8 @@ private fun PeopleTab(edit: (Any) -> Unit) {
         var amount by remember(d) { mutableStateOf(Money.input(d.remainingPaise)) }
         val p = Money.parse(amount)
         SheetForm(
-            if (d.toGive) "📤 Paid ${d.person}" else "📥 Got from ${d.person}",
+            if (d.toGive) "Paid ${d.person}" else "Got from ${d.person}",
             canSave = p != null && p <= d.remainingPaise, onDismiss = { paying = null },
-            gradient = if (d.toGive) Gradients.Danger else Gradients.Mint,
             onSave = { context.write { money().savePersonDebt(d.copy(paidPaise = d.paidPaise + p!!)) } },
         ) {
             Text("${Money.format(d.remainingPaise)} left", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -766,8 +783,8 @@ private fun PersonSheet(existing: PersonDebt?, onDismiss: () -> Unit) {
     var note by remember { mutableStateOf(existing?.note ?: "") }
     var pickDate by remember { mutableStateOf(false) }
     SheetForm(
-        if (existing == null) "🤝 Give / get" else "Edit",
-        canSave = person.isNotBlank() && Money.parse(amount) != null, onDismiss = onDismiss, gradient = Gradients.Grape,
+        if (existing == null) "Give / get" else "Edit",
+        canSave = person.isNotBlank() && Money.parse(amount) != null, onDismiss = onDismiss,
         onSave = {
             val d = (existing ?: PersonDebt(person = "", amountPaise = 0, toGive = true, dueDate = null, note = ""))
                 .copy(person = person.trim(), amountPaise = Money.parse(amount)!!, toGive = toGive, dueDate = due, note = note.trim())
@@ -777,12 +794,12 @@ private fun PersonSheet(existing: PersonDebt?, onDismiss: () -> Unit) {
     ) {
         ChipPicker(
             listOf(true, false), toGive, { if (it) "I have to give" else "I have to get" }, { toGive = it },
-            emoji = { if (it) "📤" else "📥" }, color = { if (it) Bad else Good },
+            icon = { if (it) Icons.Rounded.NorthEast else Icons.Rounded.SouthWest }, color = { if (it) Bad else Good },
         )
         TextInput(person, { person = it }, "Person")
         MoneyInput(amount, { amount = it }, "Amount", big = true)
         PickerField(
-            "Due date", due?.let { Day.long(it) } ?: "No due date", "📅", onClick = { pickDate = true },
+            "Due date", due?.let { Day.long(it) } ?: "No due date", Icons.Rounded.CalendarMonth, onClick = { pickDate = true },
             trailing = if (due != null) ({ androidx.compose.material3.TextButton(onClick = { due = null }) { Text("Clear") } }) else null,
         )
         TextInput(note, { note = it }, "Note (optional)")
@@ -797,25 +814,25 @@ private fun SavingsTab(edit: (Any) -> Unit) {
     val context = LocalContext.current
     val savings = rememberFlow(emptyList<Saving>()) { context.db.money().savings() }
     val total = savings.sumOf { it.amountPaise }
-    AppCard(Pad, gradient = Gradients.Mint) {
-        Text("Total saved", color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.labelLarge)
-        AnimatedAmount(total, MaterialTheme.typography.displaySmall, Color.White)
-        Text("across ${savings.size} pot${if (savings.size == 1) "" else "s"} 🌱", color = Color.White, style = MaterialTheme.typography.bodyMedium)
+    AppCard(Pad, hero = true) {
+        Text("Total saved", color = muted(), style = MaterialTheme.typography.labelLarge)
+        AnimatedAmount(total, MaterialTheme.typography.displaySmall)
+        Text("across ${savings.size} pot${if (savings.size == 1) "" else "s"}", color = muted(), style = MaterialTheme.typography.bodyMedium)
     }
-    if (savings.isEmpty()) EmptyState("💰", "Start saving", "Add FDs, RDs, an emergency fund, mutual funds, gold… anything you've put away.")
+    if (savings.isEmpty()) EmptyState(Icons.Rounded.Savings, "Start saving", "Add FDs, RDs, an emergency fund, mutual funds, gold… anything you've put away.")
     Column(Pad.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        val colors = listOf(Palette.Mint, Palette.Sky, Palette.Amber, Palette.Violet, Palette.Pink)
+        val colors = Palette.cycle
         savings.forEachIndexed { i, s ->
             val c = colors[i % colors.size]
             AppCard(Modifier.fillMaxWidth(), onClick = { edit(s) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    EmojiBubble("💰", c)
+                    IconBadge(Icons.Rounded.Savings, c, 36.dp)
                     Spacer(Modifier.width(12.dp))
                     Text(s.name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                     AmountText(s.amountPaise, c)
                 }
                 Spacer(Modifier.height(10.dp))
-                GradientBar(if (total > 0) s.amountPaise.toFloat() / total else 0f, gradient = listOf(c, c.copy(alpha = 0.6f)), height = 8.dp)
+                ProgressBar(if (total > 0) s.amountPaise.toFloat() / total else 0f, color = c, height = 4.dp)
                 Spacer(Modifier.height(4.dp))
                 Text(
                     "${if (total > 0) s.amountPaise * 100 / total else 0}% of your savings",
@@ -833,8 +850,8 @@ private fun SavingSheet(existing: Saving?, onDismiss: () -> Unit) {
     var name by remember { mutableStateOf(existing?.name ?: "") }
     var amount by remember { mutableStateOf(existing?.let { Money.input(it.amountPaise) } ?: "") }
     SheetForm(
-        if (existing == null) "💰 New saving" else "Edit saving",
-        canSave = name.isNotBlank() && parseBalance(amount) != null, onDismiss = onDismiss, gradient = Gradients.Mint,
+        if (existing == null) "New saving" else "Edit saving",
+        canSave = name.isNotBlank() && parseBalance(amount) != null, onDismiss = onDismiss,
         onSave = { context.write { money().saveSaving(Saving(existing?.id ?: 0, name.trim(), parseBalance(amount)!!)) } },
         onDelete = existing?.let { { context.write { money().deleteSaving(it) } } },
     ) {

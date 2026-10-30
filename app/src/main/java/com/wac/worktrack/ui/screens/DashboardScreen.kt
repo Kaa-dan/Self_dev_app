@@ -1,43 +1,45 @@
 package com.wac.worktrack.ui.screens
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.wac.worktrack.core.Day
 import com.wac.worktrack.core.Finance
 import com.wac.worktrack.core.Money
@@ -51,31 +53,34 @@ import com.wac.worktrack.data.Settings
 import com.wac.worktrack.ui.AnimatedAmount
 import com.wac.worktrack.ui.AppCard
 import com.wac.worktrack.ui.Bad
-import com.wac.worktrack.ui.Confetti
-import com.wac.worktrack.ui.EmojiBubble
+import com.wac.worktrack.ui.CircleIconButton
 import com.wac.worktrack.ui.EmptyState
+import com.wac.worktrack.ui.Glyphs
 import com.wac.worktrack.ui.Good
-import com.wac.worktrack.ui.GradientBar
-import com.wac.worktrack.ui.Gradients
+import com.wac.worktrack.ui.IconBadge
 import com.wac.worktrack.ui.ListRow
 import com.wac.worktrack.ui.LocalToday
 import com.wac.worktrack.ui.Palette
 import com.wac.worktrack.ui.ProgressRing
+import com.wac.worktrack.ui.RowDivider
 import com.wac.worktrack.ui.ScreenTitle
 import com.wac.worktrack.ui.SectionHeader
 import com.wac.worktrack.ui.Tag
 import com.wac.worktrack.ui.Visuals
 import com.wac.worktrack.ui.Warn
 import com.wac.worktrack.ui.bounceClick
+import com.wac.worktrack.ui.muted
 import com.wac.worktrack.ui.rememberFlow
+import com.wac.worktrack.ui.tabular
 import java.time.LocalTime
+import java.time.format.TextStyle
+import java.util.Locale
 
 @Composable
 fun DashboardScreen(
     modifier: Modifier,
     openMoney: (MoneyTab) -> Unit,
     openHabits: () -> Unit,
-    openGoals: () -> Unit,
 ) {
     val context = LocalContext.current
     val db = context.db
@@ -84,10 +89,8 @@ fun DashboardScreen(
     val month = Day.monthRange(today)
     val from = minOf(weekStart, month.first)
 
-    val habitsOrNull = rememberFlow<List<Habit>?>(null) { db.habits().habits() }
-    val logsOrNull = rememberFlow<List<HabitLog>?>(null) { db.habits().logs() }
-    val habits = habitsOrNull.orEmpty()
-    val logs = logsOrNull.orEmpty()
+    val habits = rememberFlow<List<Habit>?>(null) { db.habits().habits() }.orEmpty()
+    val logs = rememberFlow<List<HabitLog>?>(null) { db.habits().logs() }.orEmpty()
     val settings = rememberFlow<Settings?>(null) { db.money().settings() } ?: Settings()
     val banks = rememberFlow(emptyList()) { db.money().banks() }
     val expenses = rememberFlow(emptyList(), from, today) { db.money().expenses(from, today) }
@@ -95,132 +98,87 @@ fun DashboardScreen(
     val people = rememberFlow(emptyList()) { db.money().personDebts() }
     val payables = rememberFlow(emptyList()) { db.money().payables() }
     val savings = rememberFlow(emptyList()) { db.money().savings() }
-    val goals = rememberFlow(emptyList<Goal>()) { db.goals().goals() }
     val timers = rememberFlow(emptyList<HabitTimer>(), today) { db.habits().timers(today) }
 
     val doneToday = logs.filter { it.date == today }.map { it.habitId }.toSet()
-    val allDone = habits.isNotEmpty() && habits.all { it.id in doneToday }
-    val celebrate = rememberCelebration(allDone, habitsOrNull != null && logsOrNull != null)
     // Timed habits started today and not yet finished, running ones first.
     val ongoing = timers
         .filter { (it.runningSince != null || it.accumulatedMillis > 0) && it.habitId !in doneToday }
         .mapNotNull { t -> habits.find { it.id == t.habitId && it.durationMinutes != null }?.let { it to t } }
         .sortedBy { it.second.runningSince == null }
 
-    Box(modifier) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
-            ScreenTitle(
-                when (LocalTime.now().hour) {
-                    in 5..11 -> "Good morning ☀️"
-                    in 12..16 -> "Good afternoon 👋"
-                    else -> "Good evening 🌙"
-                },
-                subtitle = Day.long(today),
-            )
+    var showBackup by remember { mutableStateOf(false) }
+    if (showBackup) BackupSheet { showBackup = false }
 
-            if (ongoing.isNotEmpty()) {
-                SectionHeader("In progress", action = "Habits", onAction = openHabits)
-                Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ongoing.forEach { (h, t) -> OngoingCard(h, t, habitColors[habits.indexOf(h) % habitColors.size], openHabits) }
-                }
-            }
+    Column(modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
+        ScreenTitle(
+            when (LocalTime.now().hour) {
+                in 5..11 -> "Good morning"
+                in 12..16 -> "Good afternoon"
+                else -> "Good evening"
+            },
+            subtitle = Day.long(today),
+            trailing = { CircleIconButton(backupIcon(context), { showBackup = true }) },
+        )
 
-            BalanceHero(
-                balance = banks.sumOf { it.balancePaise },
-                savings = savings.sumOf { it.amountPaise },
-                debt = Finance.totalDebt(loans, people),
-                toGet = Finance.toReceive(people),
-                settings = settings,
-                today = today,
-                openMoney = openMoney,
-            )
-
-            StreakCard(habits, logs, today, openHabits)
-
-            if (habits.isNotEmpty()) {
-                SectionHeader("Today's habits", action = "${habits.count { it.id in doneToday }}/${habits.size}", onAction = openHabits)
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    habits.forEach { h ->
-                        val done = h.id in doneToday
-                        val timed = h.durationMinutes != null
-                        AppCard(
-                            Modifier.width(132.dp),
-                            gradient = if (done) Gradients.Mint else null,
-                            // A habit with a duration is only done by running its timer, on the Habits tab.
-                            onClick = { if (timed) openHabits() else toggleHabit(context, h.id, today, !done) },
-                            padding = PaddingValues(14.dp),
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(h.emoji, fontSize = 26.sp, modifier = Modifier.weight(1f))
-                                if (done) Text("✓", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                            }
-                            Spacer(Modifier.height(10.dp))
-                            Text(
-                                h.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                color = if (done) Color.White else MaterialTheme.colorScheme.onSurface,
-                            )
-                            Text(
-                                if (done) "Done!" else if (timed) "Start timer" else "Tap to finish", style = MaterialTheme.typography.bodySmall,
-                                color = if (done) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-            }
-
-            SectionHeader("Spending", action = "Details", onAction = { openMoney(MoneyTab.Spend) })
-            SpendingCard(
-                spentToday = Finance.spent(expenses, today, today),
-                spentWeek = Finance.spent(expenses, weekStart, today),
-                spentMonth = Finance.spent(expenses, month.first, today),
-                limit = settings.monthlyLimitPaise,
-                today = today,
-            ) { openMoney(MoneyTab.Spend) }
-
-            val due = Finance.unpaid(payables, today)
-            SectionHeader("Due this month", action = "All", onAction = { openMoney(MoneyTab.Monthly) })
-            AppCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp), padding = PaddingValues(8.dp)) {
-                if (due.isEmpty()) {
-                    EmptyState(
-                        if (payables.isEmpty()) "🗓️" else "🎉",
-                        if (payables.isEmpty()) "No monthly payments yet" else "All paid this month",
-                        if (payables.isEmpty()) "Add EMIs, rent and card bills in Money › Monthly." else "Nothing left to pay. Nice!",
-                    )
-                } else {
-                    Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Left to pay", Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        AnimatedAmount(due.sumOf { it.amountPaise }, MaterialTheme.typography.titleLarge, Bad)
-                    }
-                    due.take(4).forEach { p ->
-                        ListRow(
-                            p.title, sub = Money.format(p.amountPaise),
-                            leading = { EmojiBubble(Visuals.emoji(p.kind), Visuals.color(p.kind)) },
-                            onClick = { openMoney(MoneyTab.Monthly) },
-                            trailing = { DueTag(Day.inMonth(today, p.dueDay), today) },
-                        )
-                    }
-                }
-            }
-
-            SectionHeader("Goals", action = "All", onAction = openGoals)
-            val active = goals.filter { it.doneDay == null }
-            if (active.isEmpty()) {
-                AppCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp), onClick = openGoals) {
-                    EmptyState("🎯", "Set your first goal", "Pick something you want done and a date to finish it by.")
-                }
-            } else {
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) { active.forEach { GoalMiniCard(it, today, openGoals) } }
+        if (ongoing.isNotEmpty()) {
+            SectionHeader("In progress", action = "Habits", onAction = openHabits)
+            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                ongoing.forEach { (h, t) -> OngoingCard(h, t, habitColor(habits.indexOf(h)), openHabits) }
             }
         }
-        Confetti(celebrate)
+
+        BalanceHero(
+            balance = banks.sumOf { it.balancePaise },
+            savings = savings.sumOf { it.amountPaise },
+            debt = Finance.totalDebt(loans, people),
+            toGet = Finance.toReceive(people),
+            settings = settings,
+            today = today,
+            openMoney = openMoney,
+        )
+
+        ConsistencyCard(habits, logs, today, openHabits)
+
+        SectionHeader("Spending", action = "Details", onAction = { openMoney(MoneyTab.Spend) })
+        SpendingCard(
+            spentToday = Finance.spent(expenses, today, today),
+            spentWeek = Finance.spent(expenses, weekStart, today),
+            spentMonth = Finance.spent(expenses, month.first, today),
+            limit = settings.monthlyLimitPaise,
+            today = today,
+        ) { openMoney(MoneyTab.Spend) }
+
+        val due = Finance.unpaid(payables, today)
+        SectionHeader("Due this month", action = "All", onAction = { openMoney(MoneyTab.Monthly) })
+        AppCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp), padding = PaddingValues(4.dp)) {
+            if (due.isEmpty()) {
+                EmptyState(
+                    if (payables.isEmpty()) Icons.Rounded.CalendarMonth else Icons.Rounded.Check,
+                    if (payables.isEmpty()) "No monthly payments yet" else "All paid this month",
+                    if (payables.isEmpty()) "Add EMIs, rent and card bills in Money › Monthly." else "Nothing left to pay this month.",
+                )
+            } else {
+                Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Left to pay", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    AnimatedAmount(due.sumOf { it.amountPaise }, MaterialTheme.typography.titleLarge, Bad)
+                }
+                due.take(4).forEach { p ->
+                    RowDivider()
+                    ListRow(
+                        p.title, sub = Money.format(p.amountPaise),
+                        leading = { IconBadge(Visuals.icon(p.kind), Visuals.color(p.kind), 36.dp) },
+                        onClick = { openMoney(MoneyTab.Monthly) },
+                        trailing = { DueTag(Day.inMonth(today, p.dueDay), today) },
+                    )
+                }
+            }
+        }
     }
 }
+
+/** Habits cycle through the muted palette by position. */
+fun habitColor(index: Int) = Palette.cycle[Math.floorMod(index, Palette.cycle.size)]
 
 @Composable
 fun DueTag(dueDay: Long, today: Long) {
@@ -229,7 +187,7 @@ fun DueTag(dueDay: Long, today: Long) {
         left < 0 -> Tag("Overdue", Bad)
         left == 0L -> Tag("Today", Warn)
         left <= 5 -> Tag("In $left d", Warn)
-        else -> Tag(Day.short(dueDay), Palette.Slate)
+        else -> Tag(Day.short(dueDay), MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -243,85 +201,107 @@ private fun BalanceHero(
     today: Long,
     openMoney: (MoneyTab) -> Unit,
 ) {
-    AppCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), gradient = Gradients.Primary, onClick = { openMoney(MoneyTab.Banks) }) {
-        Text("Total bank balance", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelLarge)
-        AnimatedAmount(balance, MaterialTheme.typography.displaySmall, Color.White)
+    AppCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), hero = true, onClick = { openMoney(MoneyTab.Banks) }) {
+        Text("Bank balance", color = muted(), style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.height(2.dp))
+        AnimatedAmount(balance, MaterialTheme.typography.displaySmall)
         if (settings.salaryPaise > 0) {
             val received = settings.lastSalaryMonth == Day.monthKey(today)
             Spacer(Modifier.height(6.dp))
             Text(
-                if (received) "✓ Salary ${Money.format(settings.salaryPaise)} received"
-                else "⏳ Salary due ${Day.short(Day.inMonth(today, settings.salaryDay))}",
-                Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.18f)).padding(horizontal = 12.dp, vertical = 5.dp),
-                color = Color.White, style = MaterialTheme.typography.labelMedium,
+                if (received) "Salary of ${Money.format(settings.salaryPaise)} received"
+                else "Salary due ${Day.short(Day.inMonth(today, settings.salaryDay))}",
+                color = muted(), style = MaterialTheme.typography.bodySmall,
             )
         }
         Spacer(Modifier.height(16.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            HeroChip("💰", "Savings", savings, Modifier.weight(1f)) { openMoney(MoneyTab.Savings) }
-            HeroChip("💸", "Debt", debt, Modifier.weight(1f)) { openMoney(MoneyTab.Loans) }
-            HeroChip("🤝", "To get", toGet, Modifier.weight(1f)) { openMoney(MoneyTab.People) }
+        HorizontalDivider(color = muted().copy(alpha = 0.18f))
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.height(IntrinsicSize.Min)) {
+            HeroStat("Savings", savings, Modifier.weight(1f)) { openMoney(MoneyTab.Savings) }
+            Box(Modifier.width(1.dp).fillMaxHeight().background(muted().copy(alpha = 0.18f)))
+            HeroStat("Debt", debt, Modifier.weight(1f).padding(start = 12.dp)) { openMoney(MoneyTab.Loans) }
+            Box(Modifier.width(1.dp).fillMaxHeight().background(muted().copy(alpha = 0.18f)))
+            HeroStat("To get", toGet, Modifier.weight(1f).padding(start = 12.dp)) { openMoney(MoneyTab.People) }
         }
     }
 }
 
 @Composable
-private fun HeroChip(emoji: String, label: String, paise: Long, modifier: Modifier, onClick: () -> Unit) {
-    Column(
-        modifier.clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha = 0.16f)).bounceClick(onClick = onClick).padding(10.dp),
-    ) {
-        Text("$emoji $label", color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.labelMedium, maxLines = 1)
-        AnimatedAmount(paise, MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), Color.White)
+private fun HeroStat(label: String, paise: Long, modifier: Modifier, onClick: () -> Unit) {
+    Column(modifier.clip(RoundedCornerShape(8.dp)).bounceClick(onClick = onClick).padding(vertical = 2.dp)) {
+        Text(label, color = muted(), style = MaterialTheme.typography.labelMedium, maxLines = 1)
+        AnimatedAmount(paise, MaterialTheme.typography.titleSmall)
     }
 }
 
+/** Streak, best run and a calendar of the last five weeks, shaded by how much got done. */
 @Composable
-private fun StreakCard(habits: List<Habit>, logs: List<HabitLog>, today: Long, onClick: () -> Unit) {
+private fun ConsistencyCard(habits: List<Habit>, logs: List<HabitLog>, today: Long, onClick: () -> Unit) {
     val streak = Streaks.dayStreak(habits, logs, today)
     val best = Streaks.bestDayStreak(habits, logs, today)
     val next = Streaks.nextBadge(streak)
-    val pulse = rememberInfiniteTransition(label = "flame")
-    val flameScale by pulse.animateFloat(
-        0.9f, 1.1f, infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "flameScale",
-    )
-    AppCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), gradient = Gradients.Fire, onClick = onClick) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("🔥", fontSize = 54.sp, modifier = Modifier.scale(if (streak > 0) flameScale else 1f))
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text("$streak", color = Color.White, style = MaterialTheme.typography.displaySmall)
-                    Text(" day streak", color = Color.White, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 6.dp))
-                }
+    val doneByDay = Streaks.byDay(logs)
+    val primary = MaterialTheme.colorScheme.primary
+    val empty = MaterialTheme.colorScheme.surfaceContainerHighest
+
+    SectionHeader("Consistency")
+    AppCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp), onClick = onClick) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text("$streak", style = MaterialTheme.typography.displaySmall)
+            Text(
+                if (streak == 1) " day in a row" else " days in a row",
+                style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 6.dp).weight(1f),
+            )
+            Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(bottom = 6.dp)) {
+                Text("Best", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("$best", style = MaterialTheme.typography.titleMedium.tabular())
+            }
+        }
+        Text(
+            when {
+                habits.isEmpty() -> "Add a habit to start counting."
+                next != null -> "${next.days - streak} more to reach ${next.name.lowercase()} (${next.days} days)."
+                else -> "A full year. Keep the chain going."
+            },
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(16.dp))
+
+        val start = Day.weekStart(today) - 28
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            for (i in 0..6) {
                 Text(
-                    if (habits.isEmpty()) "Add habits to start your streak" else "Best: $best day${if (best == 1) "" else "s"}",
-                    color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.bodyMedium,
+                    Day.date(start + i).dayOfWeek.getDisplayName(TextStyle.NARROW, Locale.getDefault()),
+                    Modifier.weight(1f), style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
                 )
             }
         }
-        Spacer(Modifier.height(14.dp))
-        // Badge shelf: earned ones bright, locked ones faded.
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Streaks.badges.forEach { b ->
-                val earned = streak >= b.days
-                Column(
-                    Modifier.clip(RoundedCornerShape(16.dp)).background(Color.White.copy(alpha = if (earned) 0.28f else 0.1f))
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(if (earned) b.emoji else "🔒", fontSize = 20.sp)
-                    Text("${b.days}d", color = Color.White.copy(alpha = if (earned) 1f else 0.6f), style = MaterialTheme.typography.labelSmall)
+        Spacer(Modifier.height(6.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            for (week in 0..4) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    for (d in 0..6) {
+                        val day = start + week * 7 + d
+                        val due = habits.filter { it.createdDay <= day }
+                        val fraction = if (due.isEmpty()) 0f else due.count { it.id in doneByDay[day].orEmpty() }.toFloat() / due.size
+                        val shape = RoundedCornerShape(4.dp)
+                        Box(
+                            Modifier.weight(1f).aspectRatio(2.2f).clip(shape)
+                                .then(
+                                    when {
+                                        day > today -> Modifier
+                                        fraction > 0f -> Modifier.background(primary.copy(alpha = 0.25f + 0.75f * fraction))
+                                        else -> Modifier.background(empty)
+                                    },
+                                )
+                                .then(if (day == today) Modifier.border(1.5.dp, MaterialTheme.colorScheme.onSurface, shape) else Modifier),
+                        )
+                    }
                 }
             }
-        }
-        next?.let {
-            Spacer(Modifier.height(14.dp))
-            GradientBar(streak.toFloat() / it.days, gradient = listOf(Color.White, Color.White), track = Color.White.copy(alpha = 0.25f), height = 8.dp)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "${it.days - streak} more day${if (it.days - streak == 1) "" else "s"} to unlock ${it.emoji} ${it.name}",
-                color = Color.White, style = MaterialTheme.typography.labelMedium,
-            )
         }
     }
 }
@@ -331,19 +311,19 @@ private fun SpendingCard(spentToday: Long, spentWeek: Long, spentMonth: Long, li
     AppCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp), onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             val fraction = if (limit > 0) spentMonth.toFloat() / limit else 0f
-            val gradient = when {
-                fraction >= 1f -> Gradients.Danger
-                fraction >= 0.8f -> Gradients.Gold
-                else -> Gradients.Mint
+            val color = when {
+                fraction >= 1f -> Bad
+                fraction >= 0.8f -> Warn
+                else -> Good
             }
-            ProgressRing(fraction, size = 112.dp, stroke = 12.dp, gradient = gradient) {
+            ProgressRing(fraction, size = 96.dp, stroke = 7.dp, color = color) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(if (limit > 0) "${(fraction * 100).toInt()}%" else "—", style = MaterialTheme.typography.titleLarge)
+                    Text(if (limit > 0) "${(fraction * 100).toInt()}%" else "—", style = MaterialTheme.typography.titleLarge.tabular())
                     Text("of limit", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            Spacer(Modifier.width(18.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Spacer(Modifier.width(20.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 MiniStat("Today", spentToday)
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 MiniStat("This week", spentWeek)
@@ -351,12 +331,12 @@ private fun SpendingCard(spentToday: Long, spentWeek: Long, spentMonth: Long, li
                 MiniStat(Day.monthLabel(today).substringBefore(' '), spentMonth)
             }
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(14.dp))
         Text(
             when {
-                limit <= 0 -> "Set a monthly limit in Money › Spend to track your budget"
-                spentMonth >= limit -> "⚠️ Over the limit by ${Money.format(spentMonth - limit)}"
-                else -> "✨ ${Money.format(limit - spentMonth)} left · ${Money.format(Finance.perDayLeft(limit, spentMonth, today))} a day"
+                limit <= 0 -> "Set a monthly limit in Money › Spend to track your budget."
+                spentMonth >= limit -> "Over the limit by ${Money.format(spentMonth - limit)}."
+                else -> "${Money.format(limit - spentMonth)} left · ${Money.format(Finance.perDayLeft(limit, spentMonth, today))} a day"
             },
             style = MaterialTheme.typography.bodyMedium,
             color = if (limit in 1..spentMonth) Bad else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -368,30 +348,7 @@ private fun SpendingCard(spentToday: Long, spentWeek: Long, spentMonth: Long, li
 private fun MiniStat(label: String, paise: Long) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        AnimatedAmount(paise, MaterialTheme.typography.titleMedium)
-    }
-}
-
-@Composable
-private fun GoalMiniCard(goal: Goal, today: Long, onClick: () -> Unit) {
-    val left = goal.endDate - today
-    AppCard(Modifier.width(160.dp), onClick = onClick, padding = PaddingValues(14.dp)) {
-        ProgressRing(
-            goalTimeFraction(goal, today), size = 56.dp, stroke = 6.dp,
-            gradient = if (left < 0) Gradients.Danger else if (left <= 7) Gradients.Gold else Gradients.Primary,
-        ) { Text(goal.emoji, fontSize = 22.sp) }
-        Spacer(Modifier.height(10.dp))
-        Text(goal.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Spacer(Modifier.height(4.dp))
-        Text(
-            when {
-                left < 0 -> "${-left} days over"
-                left == 0L -> "Due today"
-                else -> "$left days left"
-            },
-            style = MaterialTheme.typography.labelMedium,
-            color = if (left < 0) Bad else if (left <= 7) Warn else Good,
-        )
+        AnimatedAmount(paise, MaterialTheme.typography.titleSmall)
     }
 }
 
@@ -407,14 +364,18 @@ fun goalTimeFraction(goal: Goal, today: Long): Float {
 private fun OngoingCard(habit: Habit, timer: HabitTimer, color: Color, onClick: () -> Unit) {
     AppCard(Modifier.fillMaxWidth(), onClick = onClick, padding = PaddingValues(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            EmojiBubble(habit.emoji, color, 44.dp)
+            IconBadge(Glyphs.icon(habit.emoji), color, 40.dp)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(habit.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    if (timer.runningSince != null) "Running" else "Paused", style = MaterialTheme.typography.bodySmall,
-                    color = if (timer.runningSince != null) color else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Text(habit.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Schedule, null, Modifier.size(12.dp), tint = if (timer.runningSince != null) color else MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        if (timer.runningSince != null) "Running" else "Paused", style = MaterialTheme.typography.bodySmall,
+                        color = if (timer.runningSince != null) color else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
         TimerRow(habit, habit.durationMinutes ?: return@AppCard, timer, color, done = false)

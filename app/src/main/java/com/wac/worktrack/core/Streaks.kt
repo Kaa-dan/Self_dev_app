@@ -4,17 +4,17 @@ import com.wac.worktrack.data.Habit
 import com.wac.worktrack.data.HabitLog
 
 /** Streak earned by the badge, shortest first. */
-data class StreakBadge(val days: Int, val name: String, val emoji: String)
+data class StreakBadge(val days: Int, val name: String)
 
 object Streaks {
     val badges = listOf(
-        StreakBadge(3, "Starter", "🌱"),
-        StreakBadge(7, "One week", "🔥"),
-        StreakBadge(14, "Two weeks", "⚡"),
-        StreakBadge(30, "One month", "🏅"),
-        StreakBadge(60, "Two months", "🥈"),
-        StreakBadge(100, "Centurion", "🥇"),
-        StreakBadge(365, "One year", "👑"),
+        StreakBadge(3, "Starter"),
+        StreakBadge(7, "One week"),
+        StreakBadge(14, "Two weeks"),
+        StreakBadge(30, "One month"),
+        StreakBadge(60, "Two months"),
+        StreakBadge(100, "Centurion"),
+        StreakBadge(365, "One year"),
     )
 
     fun badgeFor(streak: Int): StreakBadge? = badges.lastOrNull { streak >= it.days }

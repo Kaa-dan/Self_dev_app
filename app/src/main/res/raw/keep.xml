@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Auth.kt looks the Google Sign-In client id up by name, which the release resource shrinker
+     can't see; without this it strips the id and sign-in fails with "no web client id". -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@string/default_web_client_id" />
