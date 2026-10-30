@@ -21,4 +21,5 @@ firebase-debug.log
 
 # Release signing (keep out of the repo)
 keystore.properties
+keystore-lite.properties
 *.jks

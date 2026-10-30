@@ -30,4 +30,4 @@ Needs JDK 17 and the Android SDK (compileSdk 37).
 ```
 
 The application id is `com.nithinraj.worktrack.simple`, so it installs next to the full WorkTrack app instead of replacing it.
-Release signing is read from `keystore.properties`, the same way as on `main`.
+Release signing is read from `keystore-lite.properties` in the project root (git-ignored; Lite has its own key, separate from the full app's `keystore.properties`).

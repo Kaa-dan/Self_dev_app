@@ -19,9 +19,10 @@ android {
         versionName = "1.0"
     }
 
-    // Release signing key, read from keystore.properties in the project root (git-ignored).
+    // Release signing key, read from keystore-lite.properties in the project root (git-ignored).
+    // Lite has its own key, separate from the full app's keystore.properties.
     // Without that file the release APK is built unsigned.
-    val keystoreProps = rootProject.file("keystore.properties")
+    val keystoreProps = rootProject.file("keystore-lite.properties")
     if (keystoreProps.exists()) {
         val props = Properties().apply { keystoreProps.inputStream().use { load(it) } }
         signingConfigs.create("release") {
