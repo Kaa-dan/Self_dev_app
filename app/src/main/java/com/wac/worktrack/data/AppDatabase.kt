@@ -10,9 +10,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [
         Settings::class, Bank::class, Expense::class, Loan::class, PersonDebt::class, Payable::class,
-        Saving::class, Habit::class, HabitLog::class, Goal::class,
+        Saving::class, Habit::class, HabitLog::class, HabitTimer::class, Goal::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -36,12 +36,22 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v3: alarm vs quiet reminder per habit, and start/stop timers for timed habits. */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                listOf(
+                    "ALTER TABLE habits ADD COLUMN ringAlarm INTEGER NOT NULL DEFAULT 1",
+                    "CREATE TABLE IF NOT EXISTS `habit_timers` (`habitId` INTEGER NOT NULL, `date` INTEGER NOT NULL, `accumulatedMillis` INTEGER NOT NULL, `runningSince` INTEGER, PRIMARY KEY(`habitId`, `date`))",
+                ).forEach(db::execSQL)
+            }
+        }
+
         @Volatile
         private var instance: AppDatabase? = null
 
         fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, NAME)
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
                 .also { instance = it }
         }

@@ -93,7 +93,20 @@ data class Habit(
     val durationMinutes: Int?,
     val createdDay: Long,
     @ColumnInfo(defaultValue = "✅") val emoji: String = "✅",
+    /** At [timeMinutes]: ring like an alarm clock (true) or post a quiet notification. */
+    @ColumnInfo(defaultValue = "1") val ringAlarm: Boolean = true,
 )
+
+/** Time spent on a timed habit on [date]; [runningSince] is set while the timer runs. */
+@Entity(tableName = "habit_timers", primaryKeys = ["habitId", "date"])
+data class HabitTimer(
+    val habitId: Long,
+    val date: Long,
+    val accumulatedMillis: Long = 0,
+    val runningSince: Long? = null,
+) {
+    fun elapsed(now: Long) = accumulatedMillis + (runningSince?.let { (now - it).coerceAtLeast(0) } ?: 0)
+}
 
 @Entity(tableName = "habit_logs", primaryKeys = ["habitId", "date"], indices = [Index("date")])
 data class HabitLog(

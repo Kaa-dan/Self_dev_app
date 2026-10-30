@@ -12,7 +12,9 @@ A small personal Android app (Kotlin + Jetpack Compose + Room) for two things: *
   - **Loans**: amount, what's left to repay, EMI, and how much is repaid.
   - **To give / get**: money between you and other people, with part payments.
   - **Savings**: FDs, emergency fund, investments…
-- **Habits**: daily habits with an optional time (reminder notification with a *Done* button) and duration, a streak for each habit, the last 7 days at a glance, and ticking off past days.
+- **Habits**: daily habits with an optional time and duration, a streak for each habit, the last 7 days at a glance, and ticking off past days.
+  - **Alarm**: at a habit's time it rings like an alarm clock (full screen, over the lock screen) with *Start timer* / *Done* / *Snooze 10 min* / *Dismiss*. Turn "Ring as alarm" off for a quiet notification instead.
+  - **Timer**: a habit with a duration has Start / Pause. While it runs, a notification counts down; when the time is up it rings and the habit is marked done.
 - **Goals**: a goal and its end date, with days left. Overdue goals show in red.
 
 **Total debt** = what's left on all loans + what you still have to give people.

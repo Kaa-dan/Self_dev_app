@@ -1,7 +1,7 @@
 package com.wac.worktrack
 
 import android.app.Application
-import com.wac.worktrack.notify.HabitReminders
+import com.wac.worktrack.notify.HabitAlarms
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -12,6 +12,6 @@ class WorkTrackApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        HabitReminders.createChannel(this)
+        HabitAlarms.createChannels(this)
     }
 }

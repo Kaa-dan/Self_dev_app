@@ -30,12 +30,21 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.wac.worktrack.core.write
 import com.wac.worktrack.data.HabitLog
+import com.wac.worktrack.notify.HabitAlarms
 import com.wac.worktrack.ui.Gradients
 import com.wac.worktrack.ui.bounceClick
 import com.wac.worktrack.ui.brush
 
 fun toggleHabit(context: Context, habitId: Long, day: Long, done: Boolean) {
-    context.write { if (done) habits().log(HabitLog(habitId, day)) else habits().unlog(HabitLog(habitId, day)) }
+    context.write {
+        if (done) {
+            habits().log(HabitLog(habitId, day))
+            // Done: stop its alarm and timer.
+            HabitAlarms.onMarkedDone(context, habitId)
+        } else {
+            habits().unlog(HabitLog(habitId, day))
+        }
+    }
 }
 
 /** Ticks up each time [allDone] turns true after the data has loaded, to fire confetti. */

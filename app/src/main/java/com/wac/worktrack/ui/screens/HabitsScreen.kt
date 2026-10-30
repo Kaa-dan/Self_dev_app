@@ -19,10 +19,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,6 +38,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import kotlinx.coroutines.delay
 import com.wac.worktrack.core.Day
 import com.wac.worktrack.core.Streaks
 import com.wac.worktrack.core.db
@@ -43,7 +48,8 @@ import com.wac.worktrack.core.timeLabel
 import com.wac.worktrack.core.write
 import com.wac.worktrack.data.Habit
 import com.wac.worktrack.data.HabitLog
-import com.wac.worktrack.notify.HabitReminders
+import com.wac.worktrack.data.HabitTimer
+import com.wac.worktrack.notify.HabitAlarms
 import com.wac.worktrack.ui.AppCard
 import com.wac.worktrack.ui.ChipPicker
 import com.wac.worktrack.ui.Confetti
@@ -52,9 +58,12 @@ import com.wac.worktrack.ui.EmojiPicker
 import com.wac.worktrack.ui.EmptyState
 import com.wac.worktrack.ui.FieldLabel
 import com.wac.worktrack.ui.Good
+import com.wac.worktrack.ui.GradientBar
+import com.wac.worktrack.ui.GradientButton
 import com.wac.worktrack.ui.GradientFab
 import com.wac.worktrack.ui.Gradients
 import com.wac.worktrack.ui.LocalToday
+import com.wac.worktrack.ui.NumberInput
 import com.wac.worktrack.ui.Palette
 import com.wac.worktrack.ui.PickerField
 import com.wac.worktrack.ui.ProgressRing
@@ -84,6 +93,7 @@ fun HabitsScreen(modifier: Modifier) {
     var day by remember(today) { mutableLongStateOf(today) }
     var editing by remember { mutableStateOf<Habit?>(null) }
     var adding by remember { mutableStateOf(false) }
+    val timers = rememberFlow(emptyList<HabitTimer>(), today) { db.habits().timers(today) }
 
     val doneByHabit = remember(logs) { logs.groupBy({ it.habitId }, { it.date }).mapValues { it.value.toSet() } }
     val doneByDay = remember(logs) { Streaks.byDay(logs) }
@@ -117,6 +127,8 @@ fun HabitsScreen(modifier: Modifier) {
                 }
             }
 
+            AlarmPermissionBanner(habits)
+
             WeekStrip(habits, doneByDay, today, day) { day = it }
 
             if (habitsOrNull != null && habits.isEmpty()) {
@@ -128,6 +140,8 @@ fun HabitsScreen(modifier: Modifier) {
                     HabitCard(
                         h, habitColors[i % habitColors.size], checked = day in done, streak = Streaks.habitStreak(done, today),
                         doneDays = done, today = today,
+                        // Timers run for today only.
+                        timer = if (day == today) timers.firstOrNull { it.habitId == h.id } ?: HabitTimer(h.id, today) else null,
                         onCheck = { toggleHabit(context, h.id, day, day !in done) },
                         onClick = { editing = h },
                     )
@@ -187,6 +201,7 @@ private fun HabitCard(
     streak: Int,
     doneDays: Set<Long>,
     today: Long,
+    timer: HabitTimer?,
     onCheck: () -> Unit,
     onClick: () -> Unit,
 ) {
@@ -216,10 +231,87 @@ private fun HabitCard(
             Spacer(Modifier.width(8.dp))
             CheckCircle(checked, onCheck, size = 44.dp)
         }
+        val target = habit.durationMinutes
+        if (target != null && timer != null) TimerRow(habit, target, timer, color, checked)
     }
 }
 
-private val durations = listOf(null, 5, 10, 15, 20, 30, 45, 60, 90)
+/** Start / pause timer for a habit with a duration, with live elapsed time. */
+@Composable
+private fun TimerRow(habit: Habit, targetMinutes: Int, timer: HabitTimer, color: Color, done: Boolean) {
+    val context = LocalContext.current
+    val running = timer.runningSince != null
+    // Ticks once a second while the timer runs.
+    val now by produceState(System.currentTimeMillis(), timer) {
+        value = System.currentTimeMillis()
+        while (running) {
+            delay(1000)
+            value = System.currentTimeMillis()
+        }
+    }
+    val elapsed = timer.elapsed(now)
+    val target = targetMinutes * 60_000L
+    Spacer(Modifier.height(12.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Row {
+                Text(
+                    clock(elapsed), style = MaterialTheme.typography.titleMedium,
+                    color = if (running) color else MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    " / ${clock(target)}", style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            GradientBar(elapsed.toFloat() / target, gradient = listOf(color, color.copy(alpha = 0.6f)), height = 8.dp)
+        }
+        Spacer(Modifier.width(12.dp))
+        when {
+            running -> GradientButton("⏸ Pause", { HabitAlarms.perform(context, HabitAlarms.PAUSE, habit.id) }, gradient = Gradients.Gold, small = true)
+            done && elapsed >= target -> Tag("✓ Time done", Good)
+            else -> GradientButton(
+                if (elapsed > 0) "▶ Resume" else "▶ Start",
+                { HabitAlarms.perform(context, HabitAlarms.START, habit.id) },
+                gradient = Gradients.Mint, small = true,
+            )
+        }
+    }
+}
+
+/** "1:05:09" / "12:30". */
+private fun clock(millis: Long): String {
+    val total = millis / 1000
+    val h = total / 3600
+    val m = total % 3600 / 60
+    val s = total % 60
+    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
+}
+
+/** Warns when the phone won't let habit alarms ring on time or full screen. */
+@Composable
+private fun AlarmPermissionBanner(habits: List<Habit>) {
+    val context = LocalContext.current
+    var check by remember { mutableIntStateOf(0) }
+    LifecycleResumeEffect(Unit) {
+        check++
+        onPauseOrDispose { }
+    }
+    if (habits.none { it.timeMinutes != null && it.ringAlarm }) return
+    val fix = remember(check) { HabitAlarms.permissionSettings(context) } ?: return
+    AppCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), gradient = Gradients.Danger, onClick = {
+        runCatching { context.startActivity(fix) }
+    }) {
+        Text("⏰ Alarms need permission", color = Color.White, style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Tap to allow exact alarms and full-screen alarms so habits ring on time.",
+            color = Color.White.copy(alpha = 0.9f), style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+}
+
+private val durations = listOf(null, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240)
 
 @Composable
 private fun HabitSheet(existing: Habit?, onDismiss: () -> Unit) {
@@ -229,21 +321,23 @@ private fun HabitSheet(existing: Habit?, onDismiss: () -> Unit) {
     var emoji by remember { mutableStateOf(existing?.emoji ?: "✅") }
     var time by remember { mutableStateOf(existing?.timeMinutes) }
     var duration by remember { mutableStateOf(existing?.durationMinutes) }
+    var ringAlarm by remember { mutableStateOf(existing?.ringAlarm ?: true) }
+    var custom by remember { mutableStateOf(existing?.durationMinutes?.takeIf { it !in durations }?.toString() ?: "") }
     var pickTime by remember { mutableStateOf(false) }
     SheetForm(
         if (existing == null) "New habit" else "Edit habit",
         canSave = name.isNotBlank(), onDismiss = onDismiss,
         onSave = {
             val habit = (existing ?: Habit(name = "", timeMinutes = null, durationMinutes = null, createdDay = today))
-                .copy(name = name.trim(), emoji = emoji, timeMinutes = time, durationMinutes = duration)
+                .copy(name = name.trim(), emoji = emoji, timeMinutes = time, durationMinutes = duration, ringAlarm = ringAlarm)
             context.write {
                 val id = habits().save(habit)
-                HabitReminders.schedule(context, if (existing == null) habit.copy(id = id) else habit)
+                HabitAlarms.schedule(context, if (existing == null) habit.copy(id = id) else habit)
             }
         },
         onDelete = existing?.let {
             {
-                HabitReminders.cancel(context, it.id)
+                HabitAlarms.cancel(context, it.id)
                 context.write { habits().delete(it) }
             }
         },
@@ -257,13 +351,28 @@ private fun HabitSheet(existing: Habit?, onDismiss: () -> Unit) {
         EmojiPicker(Visuals.habitEmojis, emoji) { emoji = it }
         FieldLabel("When")
         PickerField(
-            "Reminder time", time?.let { "${timeLabel(it)} · you'll get a reminder" } ?: "Any time today", "⏰",
+            "Time", time?.let { timeLabel(it) } ?: "Any time today", "⏰",
             onClick = { pickTime = true },
             trailing = if (time != null) ({ TextButton(onClick = { time = null }) { Text("Clear") } }) else null,
         )
-        FieldLabel("How long")
-        val options = (durations + listOfNotNull(duration?.takeIf { it !in durations })).sortedBy { it ?: 0 }
-        ChipPicker(options, duration, { it?.let(::durationLabel) ?: "No duration" }, { duration = it })
+        if (time != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(if (ringAlarm) "🔔 Ring as alarm" else "🔕 Quiet notification", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        if (ringAlarm) "Rings with the alarm sound until you start, snooze or dismiss" else "A normal notification, no ringing",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(ringAlarm, { ringAlarm = it })
+            }
+        }
+        FieldLabel("How long · gives you a start/stop timer")
+        ChipPicker(durations, duration.takeIf { it in durations }, { it?.let(::durationLabel) ?: "No timer" }, { duration = it; custom = "" })
+        NumberInput(
+            custom, { custom = it; it.toIntOrNull()?.takeIf { m -> m > 0 }?.let { m -> duration = m } },
+            "Custom minutes", hint = "e.g. 150 for 2 h 30 min",
+        )
     }
     if (pickTime) TimePickerDialog(time, { pickTime = false }) { time = it; pickTime = false }
 }

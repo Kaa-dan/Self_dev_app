@@ -158,12 +158,29 @@ interface HabitDao {
     @Query("DELETE FROM habit_logs WHERE habitId = :habitId")
     suspend fun deleteLogs(habitId: Long)
 
+    // Timers
+    @Query("SELECT * FROM habit_timers WHERE date = :date")
+    fun timers(date: Long): Flow<List<HabitTimer>>
+
+    @Query("SELECT * FROM habit_timers WHERE habitId = :habitId AND date = :date")
+    suspend fun timer(habitId: Long, date: Long): HabitTimer?
+
+    @Query("SELECT * FROM habit_timers WHERE runningSince IS NOT NULL")
+    suspend fun runningTimers(): List<HabitTimer>
+
+    @Upsert
+    suspend fun saveTimer(timer: HabitTimer)
+
+    @Query("DELETE FROM habit_timers WHERE habitId = :habitId")
+    suspend fun deleteTimers(habitId: Long)
+
     @Delete
     suspend fun deleteRow(habit: Habit)
 
     @Transaction
     suspend fun delete(habit: Habit) {
         deleteLogs(habit.id)
+        deleteTimers(habit.id)
         deleteRow(habit)
     }
 }
