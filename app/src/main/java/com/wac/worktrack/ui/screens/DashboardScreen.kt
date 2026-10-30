@@ -175,11 +175,12 @@ private fun StreakCard(habits: List<Habit>, logs: List<HabitLog>, today: Long, o
                     "$streak-day streak", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                 )
+                val bestLabel = "best $best day${if (best == 1) "" else "s"}"
                 Text(
                     when {
                         habits.isEmpty() -> "Add habits to start a streak"
-                        badge != null -> "${badge.name} badge · best $best days"
-                        else -> "Finish every habit each day · best $best days"
+                        badge != null -> "${badge.name} badge · $bestLabel"
+                        else -> "Finish every habit each day · $bestLabel"
                     },
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer,
                 )
